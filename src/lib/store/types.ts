@@ -50,6 +50,10 @@ export interface DataStore {
   ): Promise<void>;
 
   // -- transcripts & utterances ----------------------------------------------
+  /** Create the transcript for a meeting, REPLACING any existing transcript
+   *  rows (and their utterances) for that meeting_id. This makes a retried
+   *  transcribe stage idempotent: re-running it never leaves duplicate
+   *  transcripts or orphaned utterances behind. */
   createTranscript(input: {
     meeting_id: string;
     raw_json: unknown;
@@ -104,6 +108,22 @@ export interface DataStore {
    *  (status back to pending) or, when attempts >= MAX_JOB_ATTEMPTS, marks it
    *  failed. Returns the updated job. */
   failJob(jobId: string, error: string): Promise<Job>;
+  /** Replace a job's payload wholesale (full replace, not a merge). Used to
+   *  persist durable stage state (e.g. the Recall bot id) mid-job. */
+  updateJobPayload(
+    jobId: string,
+    payload: Record<string, unknown>
+  ): Promise<void>;
+  /** Put a job back to "pending" WITHOUT recording a failure: attempts and
+   *  last_error are untouched, updated_at is refreshed. Used when external
+   *  work (e.g. a Zoom bot still recording) simply isn't finished yet. */
+  requeueJob(jobId: string): Promise<void>;
+  /** Crash recovery: find jobs stuck in "running" whose updated_at is older
+   *  than olderThanMs (the worker's lease expired — the process most likely
+   *  died mid-job). Each one is charged a failed attempt (attempts+1,
+   *  last_error set) and either requeued to "pending" or, once attempts
+   *  reaches MAX_JOB_ATTEMPTS, marked "failed". Returns the updated jobs. */
+  reapStaleJobs(olderThanMs: number): Promise<Job[]>;
   getJobsByMeeting(meetingId: string): Promise<Job[]>;
 
   // -- search ---------------------------------------------------------------------

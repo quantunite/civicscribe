@@ -43,6 +43,11 @@ export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
   const status = detail.meeting.status;
   const isProcessing = PROCESSING_STATUSES.has(status);
 
+  // Last status the poll loop observed. A ref (not the closure-captured
+  // `status`) so transitions within the processing set are detected exactly
+  // once without re-creating the interval.
+  const lastStatusRef = useRef<MeetingStatus>(status);
+
   // Poll while the pipeline is running so the page updates live.
   useEffect(() => {
     if (!isProcessing) return;
@@ -56,10 +61,13 @@ export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
           if (!res.ok || cancelled) return;
           const next = (await res.json()) as MeetingDetail;
           if (cancelled) return;
+          const prevStatus = lastStatusRef.current;
+          lastStatusRef.current = next.meeting.status;
           setDetail(next);
-          if (!PROCESSING_STATUSES.has(next.meeting.status)) {
-            // Done (or failed): refresh the server-rendered header so the
-            // status badge up top matches.
+          if (next.meeting.status !== prevStatus) {
+            // Any status transition (capturing -> transcribing ->
+            // summarizing -> complete/failed): refresh the server-rendered
+            // header so the status badge up top tracks live.
             router.refresh();
           }
         } catch {

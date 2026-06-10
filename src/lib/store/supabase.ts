@@ -313,6 +313,30 @@ export class SupabaseStore implements DataStore {
     raw_json: unknown;
     language: string;
   }): Promise<Transcript> {
+    // Replace semantics: drop any existing transcript rows (and their
+    // utterances) for this meeting first, so a retried transcribe stage is
+    // idempotent and never leaves duplicates or orphans behind.
+    const { data: existing, error: readError } = await this.client
+      .from("transcripts")
+      .select("id")
+      .eq("meeting_id", input.meeting_id);
+    if (readError) fail("createTranscript (read existing)", readError);
+    const staleIds = ((existing ?? []) as Array<{ id: string }>).map(
+      (t) => t.id
+    );
+    if (staleIds.length > 0) {
+      const { error: uError } = await this.client
+        .from("utterances")
+        .delete()
+        .in("transcript_id", staleIds);
+      if (uError) fail("createTranscript (delete utterances)", uError);
+      const { error: tError } = await this.client
+        .from("transcripts")
+        .delete()
+        .in("id", staleIds);
+      if (tError) fail("createTranscript (delete transcripts)", tError);
+    }
+
     const { data, error } = await this.client
       .from("transcripts")
       .insert({
@@ -537,6 +561,60 @@ export class SupabaseStore implements DataStore {
     return mapJob(data as JobRow);
   }
 
+  async updateJobPayload(
+    jobId: string,
+    payload: Record<string, unknown>
+  ): Promise<void> {
+    const { error } = await this.client
+      .from("jobs")
+      .update({ payload, updated_at: new Date().toISOString() }) // full replace
+      .eq("id", jobId);
+    if (error) fail("updateJobPayload", error);
+  }
+
+  async requeueJob(jobId: string): Promise<void> {
+    // Not a failure: attempts and last_error stay untouched.
+    const { error } = await this.client
+      .from("jobs")
+      .update({ status: "pending", updated_at: new Date().toISOString() })
+      .eq("id", jobId);
+    if (error) fail("requeueJob", error);
+  }
+
+  async reapStaleJobs(olderThanMs: number): Promise<Job[]> {
+    const cutoff = new Date(Date.now() - olderThanMs).toISOString();
+    const { data, error } = await this.client
+      .from("jobs")
+      .select("*")
+      .eq("status", "running")
+      .lt("updated_at", cutoff);
+    if (error) fail("reapStaleJobs (read)", error);
+
+    // Read-then-update per row is fine here: lease-expired running jobs are
+    // rare, and the only other writer racing us would be a concurrent reaper
+    // performing the exact same recovery.
+    const reaped: Job[] = [];
+    for (const row of (data ?? []) as JobRow[]) {
+      const attempts = row.attempts + 1;
+      const status: JobStatus =
+        attempts >= MAX_JOB_ATTEMPTS ? "failed" : "pending";
+      const { data: updated, error: updateError } = await this.client
+        .from("jobs")
+        .update({
+          attempts,
+          status,
+          last_error: "worker lease expired (process died mid-job?)",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", row.id)
+        .select()
+        .single();
+      if (updateError) fail("reapStaleJobs (update)", updateError);
+      reaped.push(mapJob(updated as JobRow));
+    }
+    return reaped;
+  }
+
   async getJobsByMeeting(meetingId: string): Promise<Job[]> {
     const { data, error } = await this.client
       .from("jobs")
@@ -557,10 +635,17 @@ export class SupabaseStore implements DataStore {
     if (q === "") return [];
     const limit = opts?.limit ?? 100;
 
+    // Order on the DB query so the fetched window is deterministic across
+    // runs. Fetch-window limitation: when more than `limit` rows match, the
+    // DB returns the first `limit` in (start_ms, id) order — NOT necessarily
+    // the rows the newest-meeting-first sort below would prefer. Acceptable
+    // for single-user v1; fixing it properly needs a joined query.
     let builder = this.client
       .from("utterances")
       .select("id, transcript_id, speaker_label, speaker_name, start_ms, end_ms, text")
-      .textSearch("text_search", q, { type: "websearch" });
+      .textSearch("text_search", q, { type: "websearch" })
+      .order("start_ms", { ascending: true })
+      .order("id", { ascending: true });
 
     if (opts?.meetingId) {
       const { data: tData, error: tError } = await this.client

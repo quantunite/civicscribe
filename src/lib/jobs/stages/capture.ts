@@ -1,9 +1,12 @@
 // Capture stage. Gets meeting audio into file storage by source_type:
 //  - upload: the file was placed in storage at creation time — pass-through.
-//  - zoom:   create a Recall.ai bot, poll until the recording is ready
-//            (mock returns "done" immediately; real bots can take a while,
-//            so we poll every 10s for up to 20 minutes inside one tick),
-//            then download the audio into storage.
+//  - zoom:   create a Recall.ai bot ONCE (the bot id is persisted in the job
+//            payload so retries reuse it instead of sending duplicate bots
+//            into the meeting), then check its status once per tick. While
+//            the bot is still recording the stage throws JobNotReadyError so
+//            the runner requeues the job — no in-process poll loop. The mock
+//            capture provider returns "done" immediately, so mock-mode ticks
+//            still complete the whole stage in a single pass.
 //  - stream: run the stream ingest provider (yt-dlp) and store the audio.
 // On success the meeting moves to "transcribing"; the runner enqueues the
 // transcribe job.
@@ -11,13 +14,10 @@
 import type { Job, Meeting } from "@/lib/types";
 import type { DataStore, FileStorage } from "@/lib/store/types";
 import type { Providers } from "@/lib/providers/types";
+import { JobNotReadyError } from "@/lib/jobs/errors";
 
-const POLL_INTERVAL_MS = 10_000;
-const MAX_POLL_MS = 20 * 60 * 1000; // 20 minutes
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+/** Give up on a Zoom bot whose recording never becomes ready. */
+const ZOOM_CAPTURE_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 const EXT_BY_CONTENT_TYPE: Record<string, string> = {
   "audio/wav": "wav",
@@ -68,7 +68,7 @@ export async function handleCapture(
       break;
     }
     case "zoom": {
-      await captureZoom(meeting, store, files, providers);
+      await captureZoom(job, meeting, store, files, providers);
       break;
     }
     case "stream": {
@@ -86,6 +86,7 @@ export async function handleCapture(
 }
 
 async function captureZoom(
+  job: Job,
   meeting: Meeting,
   store: DataStore,
   files: FileStorage,
@@ -95,41 +96,60 @@ async function captureZoom(
     throw new Error(`Zoom meeting ${meeting.id} has no source_url`);
   }
 
-  await store.setMeetingStatus(meeting.id, "capturing");
+  // Reuse the bot recorded in the job payload; create one only on the first
+  // pass. Persisting {botId, botCreatedAt} IMMEDIATELY after creation means a
+  // crash or retry can never send a second bot into the same meeting.
+  let botId =
+    typeof job.payload.botId === "string" ? job.payload.botId : null;
+  let botCreatedAt =
+    typeof job.payload.botCreatedAt === "string"
+      ? job.payload.botCreatedAt
+      : null;
+  if (!botId) {
+    const created = await providers.capture.createBot(
+      meeting.source_url,
+      meeting.id
+    );
+    botId = created.botId;
+    botCreatedAt = new Date().toISOString();
+    await store.updateJobPayload(job.id, {
+      ...job.payload,
+      botId,
+      botCreatedAt,
+    });
+  }
 
-  const { botId } = await providers.capture.createBot(
-    meeting.source_url,
-    meeting.id
+  // Single status check per tick — no in-process sleep/poll loop. If the bot
+  // isn't done yet, JobNotReadyError requeues the job and a later tick checks
+  // again. (The mock provider reports "done" immediately.)
+  const bot = await providers.capture.getBotStatus(botId);
+
+  if (bot.status === "failed") {
+    throw new Error(
+      `Recall bot ${botId} failed: ${bot.error ?? "unknown error"}`
+    );
+  }
+
+  if (bot.status !== "done") {
+    // Normal-Error timeout so standard retry/failure semantics apply once a
+    // bot has been out for 6 hours without producing a recording.
+    const createdAtMs = botCreatedAt ? Date.parse(botCreatedAt) : NaN;
+    if (!Number.isNaN(createdAtMs) && Date.now() - createdAtMs > ZOOM_CAPTURE_TIMEOUT_MS) {
+      throw new Error("zoom capture timed out after 6h");
+    }
+    await store.setMeetingStatus(meeting.id, "capturing");
+    throw new JobNotReadyError("zoom bot still recording");
+  }
+
+  if (!bot.audioUrl) {
+    throw new Error(
+      `Recall bot ${botId} reported done but returned no audio URL`
+    );
+  }
+
+  const { data, contentType } = await providers.capture.downloadAudio(
+    bot.audioUrl
   );
-
-  // Poll until the recording is ready. Status is checked before the first
-  // sleep so the mock provider ("done" immediately) keeps ticks fast.
-  const deadline = Date.now() + MAX_POLL_MS;
-  let audioUrl: string | undefined;
-  for (;;) {
-    const bot = await providers.capture.getBotStatus(botId);
-    if (bot.status === "done") {
-      audioUrl = bot.audioUrl;
-      break;
-    }
-    if (bot.status === "failed") {
-      throw new Error(
-        `Recall bot ${botId} failed: ${bot.error ?? "unknown error"}`
-      );
-    }
-    if (Date.now() >= deadline) {
-      throw new Error(
-        `Timed out after ${MAX_POLL_MS / 60_000} minutes waiting for Recall bot ${botId} recording`
-      );
-    }
-    await sleep(POLL_INTERVAL_MS);
-  }
-
-  if (!audioUrl) {
-    throw new Error(`Recall bot ${botId} reported done but returned no audio URL`);
-  }
-
-  const { data, contentType } = await providers.capture.downloadAudio(audioUrl);
   const path = audioPathFor(meeting.id, contentType);
   await files.put(path, data, contentType);
   await store.updateMeeting(meeting.id, { audio_storage_path: path });

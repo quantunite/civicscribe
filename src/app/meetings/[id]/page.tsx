@@ -92,8 +92,9 @@ export default async function MeetingDetailPage({
   if (!detail) notFound();
   const { meeting } = detail;
 
+  // <div>, not <main>: the root layout already renders the <main> landmark.
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
+    <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
       <nav aria-label="Breadcrumb">
         <Link
           href="/"
@@ -125,6 +126,6 @@ export default async function MeetingDetailPage({
       <div className="mt-8">
         <MeetingView detail={detail} />
       </div>
-    </main>
+    </div>
   );
 }

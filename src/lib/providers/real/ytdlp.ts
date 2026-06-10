@@ -84,6 +84,9 @@ export class YtDlpStreamIngestProvider implements StreamIngestProvider {
         "--no-progress",
         "-o",
         outputTemplate,
+        // End-of-options marker: a user-supplied URL can never be parsed as
+        // a yt-dlp flag (e.g. "--exec ...").
+        "--",
         streamUrl,
       ];
 

@@ -4,45 +4,49 @@ import { getStore, getFileStorage } from "@/lib/store";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_EXTENSIONS = new Set([
-  ".mp3",
-  ".m4a",
-  ".wav",
-  ".mp4",
-  ".webm",
-  ".ogg",
-  ".opus",
-  ".aac",
-  ".flac",
-  ".mov",
-  ".mkv",
-]);
+const DEFAULT_MAX_UPLOAD_MB = 512;
 
-/** Extension from the original filename (lowercase, including the dot). */
+/** Upload size cap in bytes (override with the MAX_UPLOAD_MB env var). */
+function maxUploadBytes(): number {
+  const raw = process.env.MAX_UPLOAD_MB;
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  const mb =
+    Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_UPLOAD_MB;
+  return mb * 1024 * 1024;
+}
+
+// Extension allowlist mapped to the MIME type we STORE. The client-provided
+// file.type is never trusted or persisted — a spoofed Content-Type can't make
+// us serve, say, text/html from the audio route.
+const CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
+  ".mp3": "audio/mpeg",
+  ".m4a": "audio/mp4",
+  ".wav": "audio/wav",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".ogg": "audio/ogg",
+  ".opus": "audio/opus",
+  ".aac": "audio/aac",
+  ".flac": "audio/flac",
+  ".mov": "video/quicktime",
+  ".mkv": "video/x-matroska",
+};
+
+/** Allowlisted extension from the original filename (lowercase, with dot). */
 function extensionFromFilename(name: string): string | null {
   const match = /(\.[A-Za-z0-9]+)$/.exec(name);
   if (!match) return null;
   const ext = match[1].toLowerCase();
-  return ALLOWED_EXTENSIONS.has(ext) ? ext : null;
+  return ext in CONTENT_TYPE_BY_EXTENSION ? ext : null;
 }
 
-function isAcceptableUpload(file: File): boolean {
-  if (file.type.startsWith("audio/") || file.type.startsWith("video/")) {
-    return true;
-  }
-  return extensionFromFilename(file.name) !== null;
-}
-
-/** Fallback extension when the filename has none we recognize. */
-function extensionFromMime(type: string): string {
-  if (type.includes("mpeg") || type.includes("mp3")) return ".mp3";
-  if (type.includes("mp4")) return ".mp4";
-  if (type.includes("wav")) return ".wav";
-  if (type.includes("ogg")) return ".ogg";
-  if (type.includes("webm")) return ".webm";
-  if (type.includes("aac")) return ".aac";
-  if (type.includes("flac")) return ".flac";
-  return ".bin";
+function tooLargeResponse(limitBytes: number) {
+  return NextResponse.json(
+    {
+      error: `File too large. The upload limit is ${Math.floor(limitBytes / (1024 * 1024))} MB.`,
+    },
+    { status: 413 }
+  );
 }
 
 /**
@@ -52,6 +56,18 @@ function extensionFromMime(type: string): string {
  * to transcription for uploads).
  */
 export async function POST(request: Request) {
+  const limitBytes = maxUploadBytes();
+
+  // Cheap rejection BEFORE reading the body: trust a declared Content-Length
+  // only to bail early. The actual read size is re-checked below.
+  const declaredLength = Number.parseInt(
+    request.headers.get("content-length") ?? "",
+    10
+  );
+  if (Number.isFinite(declaredLength) && declaredLength > limitBytes) {
+    return tooLargeResponse(limitBytes);
+  }
+
   let form: FormData;
   try {
     form = await request.formData();
@@ -78,7 +94,14 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  if (!isAcceptableUpload(file)) {
+  if (file.size > limitBytes) {
+    return tooLargeResponse(limitBytes);
+  }
+
+  // The stored content type is derived ONLY from the extension allowlist;
+  // files without an allowlisted extension are rejected outright.
+  const ext = extensionFromFilename(file.name);
+  if (!ext) {
     return NextResponse.json(
       {
         error:
@@ -87,6 +110,7 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  const contentType = CONTENT_TYPE_BY_EXTENSION[ext];
 
   try {
     const store = getStore();
@@ -98,17 +122,30 @@ export async function POST(request: Request) {
       source_type: "upload",
     });
 
-    const ext =
-      extensionFromFilename(file.name) ?? extensionFromMime(file.type);
     const storagePath = `meetings/${meeting.id}/audio${ext}`;
 
     const data = Buffer.from(await file.arrayBuffer());
-    await files.put(storagePath, data, file.type || "application/octet-stream");
+    await files.put(storagePath, data, contentType);
 
     const updated = await store.updateMeeting(meeting.id, {
       audio_storage_path: storagePath,
     });
-    await store.enqueueJob(meeting.id, "capture");
+
+    try {
+      await store.enqueueJob(meeting.id, "capture");
+    } catch (err) {
+      // Don't strand a zombie "pending" meeting no job will ever advance.
+      await store
+        .setMeetingStatus(
+          meeting.id,
+          "failed",
+          "failed to enqueue processing job"
+        )
+        .catch(() => {});
+      const message =
+        err instanceof Error ? err.message : "failed to enqueue processing job";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
 
     return NextResponse.json(updated, { status: 201 });
   } catch (err) {

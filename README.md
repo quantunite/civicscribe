@@ -95,6 +95,10 @@ independently — you can go live one service at a time.
 5. **yt-dlp** (stream capture) — install the binary and ensure it's on PATH
    (`winget install yt-dlp` on Windows, `brew install yt-dlp` on macOS), or
    set `YTDLP_PATH`.
+   - **ffmpeg is required** for audio extraction — `yt-dlp -x` shells out to
+     it (`winget install ffmpeg` on Windows, `brew install ffmpeg` on macOS).
+   - Stream capture works for VOD and already-live streams; scheduled capture
+     of future live streams is v2 (see the v2 list below).
 
 6. **Resend** (email, optional) — set `RESEND_API_KEY` and `NOTIFY_EMAIL`.
    Without a key, completion emails are logged to the console (dev stub).

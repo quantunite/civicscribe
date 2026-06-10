@@ -75,19 +75,23 @@ export default function MeetingCard({ meeting }: { meeting: Meeting }) {
   const cardClass =
     "block h-full rounded-xl border border-line bg-surface p-5 shadow-sm";
 
-  if (isComplete) {
-    return (
-      <li className="h-full">
-        <Link
-          href={`/meetings/${meeting.id}`}
-          aria-label={`${meeting.title} — open transcript and summary`}
-          className={`${cardClass} transition-shadow hover:border-accent hover:shadow-md focus-visible:border-accent`}
-        >
-          {body}
-        </Link>
-      </li>
-    );
-  }
-
-  return <li className={`${cardClass} h-full`}>{body}</li>;
+  // Every card links to the detail page: complete meetings open the
+  // transcript and summary; processing meetings show live progress; failed
+  // meetings show the full error. The card body contains no interactive
+  // elements, so a single wrapping anchor stays accessible.
+  return (
+    <li className="h-full">
+      <Link
+        href={`/meetings/${meeting.id}`}
+        aria-label={
+          isComplete
+            ? `${meeting.title} — open transcript and summary`
+            : `${meeting.title} — view status and details`
+        }
+        className={`${cardClass} transition-shadow hover:border-accent hover:shadow-md focus-visible:border-accent`}
+      >
+        {body}
+      </Link>
+    </li>
+  );
 }

@@ -1,8 +1,10 @@
 // Notify stage (terminal). Sends the completion email when NOTIFY_EMAIL is
-// configured. The meeting is already "complete" before this stage runs, so
-// notify is strictly best-effort: missing config is a silent no-op and a
-// failed send is logged but never thrown — a broken email must not flip a
-// finished meeting back to "failed".
+// configured. Missing config stays a silent no-op, but a REAL send error
+// throws so the runner retries the job (up to MAX_JOB_ATTEMPTS) — transient
+// email-provider hiccups get another chance instead of being swallowed.
+// The meeting is already "complete" before this stage runs; the runner never
+// changes a meeting's status for notify jobs, so even a terminally failed
+// notify can't flip a finished meeting back to "failed".
 
 import type { Job } from "@/lib/types";
 import type { DataStore } from "@/lib/store/types";
@@ -19,25 +21,19 @@ export async function handleNotify(
     return; // notifications not configured — nothing to do
   }
 
-  try {
-    const meeting = await store.getMeeting(job.meeting_id);
-    if (!meeting) {
-      console.warn(
-        `[notify] meeting ${job.meeting_id} not found — skipping completion email`
-      );
-      return;
-    }
-
-    const summary = await store.getSummaryByMeeting(meeting.id);
-    await providers.email.sendCompletionEmail(
-      config.notifyEmail,
-      meeting,
-      summary
+  const meeting = await store.getMeeting(job.meeting_id);
+  if (!meeting) {
+    console.warn(
+      `[notify] meeting ${job.meeting_id} not found — skipping completion email`
     );
-  } catch (err) {
-    console.error(
-      `[notify] failed to send completion email for meeting ${job.meeting_id}:`,
-      err
-    );
+    return;
   }
+
+  const summary = await store.getSummaryByMeeting(meeting.id);
+  // Throws on failure so the runner's retry semantics apply.
+  await providers.email.sendCompletionEmail(
+    config.notifyEmail,
+    meeting,
+    summary
+  );
 }

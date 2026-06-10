@@ -67,6 +67,9 @@ export async function GET(
     "Content-Type": contentType || "application/octet-stream",
     "Accept-Ranges": "bytes",
     "Cache-Control": "private, max-age=3600",
+    // Never let the browser MIME-sniff stored bytes into something
+    // executable (e.g. a spoofed upload rendered as HTML).
+    "X-Content-Type-Options": "nosniff",
   };
 
   const rangeHeader = request.headers.get("range");

@@ -53,6 +53,60 @@ Judgment calls made during the autonomous build, with reasons.
    Docker (for `supabase start`). Neither is needed in mock mode.
 
 10. **Recall.ai integration is poll-based with a webhook accelerator.** The
-    capture stage polls bot status on each tick; `/api/webhooks/recall` also
+    capture stage checks bot status once per tick; `/api/webhooks/recall` also
     accepts "recording ready" callbacks and enqueues immediate processing.
     Polling alone is sufficient for correctness.
+
+---
+
+Post-review hardening (adversarial review pass found 27 confirmed issues;
+fixes below):
+
+11. **Zoom capture is resumable across ticks.** The Recall `botId` is persisted
+    in `job.payload` on first creation; subsequent ticks reuse it and check
+    status once (no in-tick poll loop). A still-recording bot throws
+    `JobNotReadyError`, which the runner treats as "requeue without consuming
+    an attempt" — so meetings of any length capture correctly, retries never
+    spawn duplicate bots, and a transient download failure can resume against
+    the existing recording. A 6-hour cap turns a stuck bot into a normal
+    failure.
+
+12. **Crash recovery via job leases.** `reapStaleJobs()` runs at the top of
+    every tick: jobs left `running` longer than 45 minutes (chosen to exceed
+    AssemblyAI's 30-minute in-tick poll cap) are requeued with an attempt
+    consumed, or failed at the attempt limit with the meeting marked failed. A
+    reconcile pass also fails meetings stranded in a processing status with no
+    live jobs. Before this, a killed worker left meetings spinning forever.
+
+13. **`createTranscript` replaces.** Creating a transcript for a meeting
+    deletes any prior transcript + utterances for that meeting, making the
+    transcribe stage idempotent under retries (no duplicate search results).
+    Same semantics `createSummary` already had.
+
+14. **Notify failures retry but never touch meeting status.** Real email send
+    errors throw (normal 3-attempt retry); the runner exempts `notify` jobs
+    from the mark-meeting-failed path since the meeting is already complete.
+
+15. **Upload/serving hardening.** Uploads are capped (512 MB default,
+    `MAX_UPLOAD_MB` to override), stored content types come from the file
+    extension allowlist (client MIME is never trusted), and `/api/audio`
+    serves with `X-Content-Type-Options: nosniff` — closing the
+    upload-HTML/SVG-then-serve-inline XSS vector.
+
+16. **Stream URLs are validated against internal hosts** (loopback/RFC1918/
+    link-local rejected) and yt-dlp receives the URL after a `--` separator so
+    it can never be parsed as a flag. DNS-rebinding-grade SSRF protection is
+    explicitly out of scope for single-user v1.
+
+17. **MemoryStore reloads on external file change** (mtime check per access),
+    so running `npm run seed` while the dev server is up no longer clobbers
+    data when the server next persists. Concurrent multi-process *writes*
+    remain last-write-wins — acceptable for a single-user dev store; Supabase
+    is the real multi-process backend.
+
+18. **Known accepted limitations** (documented, not fixed in v1): Postgres FTS
+    stemming can match words the literal highlighter doesn't mark (e.g.
+    "zoned" for "zoning"); Supabase search applies its LIMIT to the fetch
+    window before recency sorting; webhook/tick endpoints are unauthenticated
+    (single-user deployment assumption); audio route buffers whole objects in
+    memory (streaming is v2).

@@ -13,7 +13,7 @@
 // the Supabase-backed implementation.
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -75,6 +75,8 @@ function clone<T>(value: T): T {
 export class MemoryStore implements DataStore {
   private readonly dbPath: string;
   private db: DbShape | null = null;
+  /** mtime of db.json when we last read or wrote it — see load(). */
+  private dbMtimeMs: number | null = null;
   /** Promise-chain mutex: every operation runs strictly after the previous one. */
   private queue: Promise<unknown> = Promise.resolve();
 
@@ -93,9 +95,23 @@ export class MemoryStore implements DataStore {
     return run;
   }
 
-  /** Lazy-load db.json on first access; tolerate missing/corrupt files. */
+  private async fileMtimeMs(): Promise<number | null> {
+    try {
+      return (await stat(this.dbPath)).mtimeMs;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Lazy-load db.json; tolerate missing/corrupt files. Reloads whenever
+   *  another process rewrote the file since we last read or wrote it (e.g.
+   *  `npm run seed` while the dev server is up) — without the mtime check a
+   *  stale cached snapshot would clobber the other process's writes on our
+   *  next persist(). Multi-process WRITE races remain last-write-wins; the
+   *  multi-process backend is Supabase. */
   private async load(): Promise<DbShape> {
-    if (this.db) return this.db;
+    const mtime = await this.fileMtimeMs();
+    if (this.db && mtime === this.dbMtimeMs) return this.db;
     try {
       const raw = await readFile(this.dbPath, "utf8");
       const parsed: unknown = JSON.parse(raw);
@@ -114,6 +130,7 @@ export class MemoryStore implements DataStore {
       // Missing or corrupt file: start empty.
       this.db = emptyDb();
     }
+    this.dbMtimeMs = mtime;
     return this.db;
   }
 
@@ -124,6 +141,7 @@ export class MemoryStore implements DataStore {
     const tmp = `${this.dbPath}.tmp`;
     await writeFile(tmp, JSON.stringify(this.db, null, 2), "utf8");
     await rename(tmp, this.dbPath);
+    this.dbMtimeMs = await this.fileMtimeMs();
   }
 
   // -- meetings -------------------------------------------------------------
@@ -227,6 +245,20 @@ export class MemoryStore implements DataStore {
   }): Promise<Transcript> {
     return this.withLock(async () => {
       const db = await this.load();
+      // Replace semantics: drop any existing transcript (and its utterances)
+      // for this meeting so a retried transcribe stage is idempotent and
+      // never leaves duplicates or orphans behind.
+      const staleIds = new Set(
+        db.transcripts
+          .filter((t) => t.meeting_id === input.meeting_id)
+          .map((t) => t.id)
+      );
+      if (staleIds.size > 0) {
+        db.transcripts = db.transcripts.filter((t) => !staleIds.has(t.id));
+        db.utterances = db.utterances.filter(
+          (u) => !staleIds.has(u.transcript_id)
+        );
+      }
       const transcript: Transcript = {
         id: randomUUID(),
         meeting_id: input.meeting_id,
@@ -456,6 +488,52 @@ export class MemoryStore implements DataStore {
       job.updated_at = now();
       await this.persist();
       return clone(job);
+    });
+  }
+
+  updateJobPayload(
+    jobId: string,
+    payload: Record<string, unknown>
+  ): Promise<void> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const job = db.jobs.find((j) => j.id === jobId);
+      if (!job) throw new Error(`Job not found: ${jobId}`);
+      job.payload = clone(payload); // full replace, not a merge
+      job.updated_at = now();
+      await this.persist();
+    });
+  }
+
+  requeueJob(jobId: string): Promise<void> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const job = db.jobs.find((j) => j.id === jobId);
+      if (!job) throw new Error(`Job not found: ${jobId}`);
+      // Not a failure: attempts and last_error stay untouched.
+      job.status = "pending";
+      job.updated_at = now();
+      await this.persist();
+    });
+  }
+
+  reapStaleJobs(olderThanMs: number): Promise<Job[]> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const cutoff = Date.now() - olderThanMs;
+      const reaped: Job[] = [];
+      for (const job of db.jobs) {
+        if (job.status !== "running") continue;
+        const updatedAt = Date.parse(job.updated_at);
+        if (Number.isNaN(updatedAt) || updatedAt >= cutoff) continue;
+        job.attempts += 1;
+        job.last_error = "worker lease expired (process died mid-job?)";
+        job.status = job.attempts >= MAX_JOB_ATTEMPTS ? "failed" : "pending";
+        job.updated_at = now();
+        reaped.push(clone(job));
+      }
+      if (reaped.length > 0) await this.persist();
+      return reaped;
     });
   }
 
