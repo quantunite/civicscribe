@@ -117,6 +117,41 @@ exercises Supabase + AssemblyAI + Anthropic and nothing else), watch the
 worker logs, and confirm the transcript has real speaker labels. Then try a
 stream URL (adds yt-dlp), and a Zoom meeting last (needs Recall approval).
 
+### What it costs to run
+
+Usage-based pricing as of June 2026 — check the providers' pricing pages
+before budgeting, these move around.
+
+| Service | Rate | Notes |
+|---|---|---|
+| AssemblyAI | ~$0.17 / audio hr | $0.15 base + $0.02 diarization; announced +10% on in-region pricing from July 1, 2026 |
+| Anthropic (claude-sonnet-4-6) | ~$0.05 / audio hr | ~13k transcript tokens/hr at $3/M input + a ~1.5k-token summary at $15/M output |
+| Recall.ai (Zoom only) | $0.50 / recording hr | pay-as-you-go; CivicScribe uses AssemblyAI for transcription, so Recall's own transcription add-on is not needed |
+| yt-dlp / ffmpeg | $0 | open source |
+| Resend | $0 | free tier covers 3,000 emails/month |
+
+**Per typical 2-hour meeting:** ~$0.45 via upload or stream URL; ~$1.45 via
+Zoom bot (the Recall hour rate is the difference).
+
+**Monthly, realistically:**
+
+- Light (a few uploaded recordings): ~$2/month
+- Typical (~10 two-hour meetings, half via Zoom): **$8–10/month**
+- Heavy (15 two-hour meetings, all Zoom): ~$22/month
+
+**Fixed costs are the swing factor:**
+
+- **Supabase**: free tier to start; its 1 GB storage holds roughly 30 hours of
+  compressed meeting audio, after which Pro is $25/month. Defer it by staying
+  on the local file store, or by pruning audio after transcription — the
+  transcript and summary are tiny.
+- **Hosting**: $0 while it runs on your own machine; a small always-on VPS is
+  ~$5/month.
+
+The Anthropic line is nearly negligible — a summary costs about a dime per
+meeting. Transcription minutes dominate; Zoom bot hours double the marginal
+cost when used.
+
 ## v2 (explicit non-goals for v1)
 
 - Real-time live captions
