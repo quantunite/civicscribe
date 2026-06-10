@@ -11,7 +11,7 @@ const g = globalThis as unknown as {
   __civicscribeFiles?: FileStorage;
 };
 
-function useSupabase(): boolean {
+function shouldUseSupabase(): boolean {
   const config = getConfig();
   return !config.mockMode && !!config.supabaseUrl;
 }
@@ -19,7 +19,7 @@ function useSupabase(): boolean {
 export function getStore(): DataStore {
   if (!g.__civicscribeStore) {
     const config = getConfig();
-    g.__civicscribeStore = useSupabase()
+    g.__civicscribeStore = shouldUseSupabase()
       ? new SupabaseStore(config)
       : new MemoryStore(config.dataDir);
   }
@@ -29,7 +29,7 @@ export function getStore(): DataStore {
 export function getFileStorage(): FileStorage {
   if (!g.__civicscribeFiles) {
     const config = getConfig();
-    g.__civicscribeFiles = useSupabase()
+    g.__civicscribeFiles = shouldUseSupabase()
       ? new SupabaseFileStorage(config)
       : new LocalFileStorage(config.dataDir);
   }
