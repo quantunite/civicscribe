@@ -11,7 +11,11 @@ export default defineConfig({
     baseURL: "http://localhost:3211",
   },
   webServer: {
-    command: "npm run dev -- --port 3211",
+    // Wipe the e2e data dir BEFORE the server boots: Playwright starts the
+    // webServer before globalSetup runs, and the server's readiness probe
+    // would otherwise cache a stale db.json into the store singleton.
+    command:
+      'node -e "require(\'node:fs\').rmSync(\'.data-e2e\', { recursive: true, force: true })" && npm run dev -- --port 3211',
     url: "http://localhost:3211",
     reuseExistingServer: false,
     timeout: 180_000,

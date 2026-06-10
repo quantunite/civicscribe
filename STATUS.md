@@ -9,14 +9,16 @@ FINAL_REPORT.md (written last) for the wrap-up.
 | Shared contracts (types, provider + store interfaces, factories) | ✅ done |
 | Supabase migration (schema, FTS, claim_next_job) | ✅ done |
 | .env.example | ✅ done |
-| Fixtures (council transcript + summaries) & mock providers | ⏳ in progress |
-| Real providers (AssemblyAI, Recall, Anthropic, Resend, yt-dlp) | ⏳ in progress |
-| Data stores (memory + Supabase) + seed script | ⏳ in progress |
-| Job runner, pipeline stages, tick + webhook routes, worker script | ⏳ in progress |
-| Frontend: dashboard + new-meeting form | ⏳ in progress |
-| Frontend: meeting detail (summary, transcript, search, audio) + global search | ⏳ in progress |
-| Typecheck / lint clean | ⬜ pending
-| Unit tests (Vitest) | ⬜ pending |
-| Playwright e2e (mock-mode full pipeline) | ⬜ pending |
-| README (quickstart + going live) | ⬜ pending |
+| Fixtures (council transcript + summaries) & mock providers | ✅ done |
+| Real providers (AssemblyAI, Recall, Anthropic, Resend, yt-dlp) | ✅ done |
+| Data stores (memory + Supabase) + seed script | ✅ done |
+| Job runner, pipeline stages, tick + webhook routes, worker script | ✅ done |
+| Frontend: dashboard + new-meeting form | ✅ done |
+| Frontend: meeting detail (summary, transcript, search, audio) + global search | ✅ done |
+| Typecheck / lint / production build clean | ✅ done |
+| Manual mock-pipeline verification (zoom + upload paths, aliases, search, audio ranges) | ✅ done |
+| Unit tests (Vitest) | ⏳ in progress |
+| Playwright e2e (mock-mode full pipeline) | ⏳ in progress |
+| README (quickstart + going live) | ✅ done |
+| Adversarial code review pass | ⬜ pending |
 | FINAL_REPORT.md | ⬜ pending |
