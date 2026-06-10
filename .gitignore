@@ -45,3 +45,6 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 .data-e2e/
+
+# but keep the env template
+!.env.example
