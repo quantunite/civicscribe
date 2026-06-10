@@ -71,6 +71,15 @@ Set `MOCK_MODE=false` in `.env.local` and fill in keys as you obtain them
 (every variable is documented in `.env.example`). Each provider activates
 independently — you can go live one service at a time.
 
+### Keys at a glance — what each submission path needs
+
+| To go live with… | Required | Why |
+|---|---|---|
+| **Upload file** | `ASSEMBLYAI_API_KEY`, `ANTHROPIC_API_KEY` — plus the three `SUPABASE_*` keys, or skip them to keep the local file store | AssemblyAI turns audio into a diarized transcript; Anthropic writes the summary; Supabase stores meetings + audio in production |
+| **Stream URL** | everything above, plus `yt-dlp` and `ffmpeg` installed (binaries, not keys) | yt-dlp downloads the stream; ffmpeg extracts the audio track |
+| **Zoom URL** | everything above, plus `RECALL_API_KEY` + `RECALL_REGION` (**signup approval required — request early**) | a Recall.ai bot joins the meeting and records it |
+| **Completion email** (optional) | `RESEND_API_KEY` + `NOTIFY_EMAIL` | without them, emails are logged to the console |
+
 1. **Supabase** (database + audio storage)
    - Create a project at [supabase.com](https://supabase.com) (or run locally:
      install Docker Desktop, then `supabase start`).
