@@ -242,6 +242,7 @@ export class MemoryStore implements DataStore {
     meeting_id: string;
     raw_json: unknown;
     language: string;
+    diarized?: boolean;
   }): Promise<Transcript> {
     return this.withLock(async () => {
       const db = await this.load();
@@ -264,6 +265,7 @@ export class MemoryStore implements DataStore {
         meeting_id: input.meeting_id,
         raw_json: input.raw_json,
         language: input.language,
+        diarized: input.diarized ?? true,
         created_at: now(),
       };
       db.transcripts.push(transcript);
@@ -278,7 +280,10 @@ export class MemoryStore implements DataStore {
       const matches = db.transcripts
         .filter((t) => t.meeting_id === meetingId)
         .sort((a, b) => b.created_at.localeCompare(a.created_at));
-      return matches[0] ? clone(matches[0]) : null;
+      // Coerce legacy rows written before the diarized column existed.
+      return matches[0]
+        ? clone({ ...matches[0], diarized: matches[0].diarized ?? true })
+        : null;
     });
   }
 

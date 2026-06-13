@@ -40,6 +40,9 @@ export interface Transcript {
   meeting_id: string;
   raw_json: unknown;
   language: string;
+  /** True for audio transcription (AssemblyAI/mock — has speaker labels);
+   *  false for caption-sourced transcripts (caption fast lane, no diarization). */
+  diarized: boolean;
   created_at: string;
 }
 

@@ -58,6 +58,8 @@ export interface DataStore {
     meeting_id: string;
     raw_json: unknown;
     language: string;
+    /** Defaults to true (audio transcription). Caption transcripts pass false. */
+    diarized?: boolean;
   }): Promise<Transcript>;
   getTranscriptByMeeting(meetingId: string): Promise<Transcript | null>;
   createUtterances(

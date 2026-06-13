@@ -57,6 +57,7 @@ interface TranscriptRow {
   meeting_id: string;
   raw_json: unknown;
   language: string;
+  diarized: boolean;
   created_at: string;
 }
 
@@ -136,6 +137,7 @@ function mapTranscript(row: TranscriptRow): Transcript {
     meeting_id: row.meeting_id,
     raw_json: row.raw_json,
     language: row.language,
+    diarized: row.diarized ?? true,
     created_at: row.created_at,
   };
 }
@@ -312,6 +314,7 @@ export class SupabaseStore implements DataStore {
     meeting_id: string;
     raw_json: unknown;
     language: string;
+    diarized?: boolean;
   }): Promise<Transcript> {
     // Replace semantics: drop any existing transcript rows (and their
     // utterances) for this meeting first, so a retried transcribe stage is
@@ -343,6 +346,7 @@ export class SupabaseStore implements DataStore {
         meeting_id: input.meeting_id,
         raw_json: input.raw_json,
         language: input.language,
+        diarized: input.diarized ?? true,
       })
       .select()
       .single();
