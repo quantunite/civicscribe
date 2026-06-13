@@ -16,6 +16,12 @@ export interface AppConfig {
   notifyEmail: string | null;
   /** Local data dir used by the mock-mode file-backed store + local file storage. */
   dataDir: string;
+  /** Try fetching an existing caption track before downloading audio (stream sources). */
+  captionFastLane: boolean;
+  /** Caption language preference order (manual beats auto within the first match). */
+  captionLangs: string[];
+  /** Hard timeout (ms) for a caption fetch before falling back to audio. */
+  captionFetchTimeoutMs: number;
 }
 
 function env(name: string): string | null {
@@ -40,5 +46,11 @@ export function getConfig(): AppConfig {
     resendApiKey: env("RESEND_API_KEY"),
     notifyEmail: env("NOTIFY_EMAIL"),
     dataDir: env("DATA_DIR") ?? ".data",
+    captionFastLane: (env("CAPTION_FASTLANE") ?? "true") !== "false",
+    captionLangs: (env("CAPTION_LANGS") ?? "en,en-US,en-GB,en-orig")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0),
+    captionFetchTimeoutMs: Number(env("CAPTION_FETCH_TIMEOUT_MS") ?? "60000"),
   };
 }

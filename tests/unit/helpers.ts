@@ -36,6 +36,9 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     resendApiKey: null,
     notifyEmail: null,
     dataDir: ".data-test-unused",
+    captionFastLane: true,
+    captionLangs: ["en", "en-US", "en-GB", "en-orig"],
+    captionFetchTimeoutMs: 60000,
     ...overrides,
   };
 }
