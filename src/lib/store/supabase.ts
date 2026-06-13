@@ -25,6 +25,7 @@ import {
   type NewMeeting,
   type NewUtterance,
   type SourceType,
+  type MeetingKind,
   type SpeakerAlias,
   type Summary,
   type Transcript,
@@ -43,6 +44,7 @@ interface MeetingRow {
   title: string;
   body_name: string;
   source_type: SourceType;
+  kind: MeetingKind;
   source_url: string | null;
   status: MeetingStatus;
   error_message: string | null;
@@ -121,6 +123,7 @@ function mapMeeting(row: MeetingRow): Meeting {
     title: row.title,
     body_name: row.body_name,
     source_type: row.source_type,
+    kind: row.kind ?? "civic",
     source_url: row.source_url,
     status: row.status,
     error_message: row.error_message,
@@ -228,6 +231,7 @@ export class SupabaseStore implements DataStore {
         title: input.title,
         body_name: input.body_name,
         source_type: input.source_type,
+        kind: input.kind ?? "civic",
         source_url: input.source_url ?? null,
         scheduled_at: input.scheduled_at ?? null,
         audio_storage_path: input.audio_storage_path ?? null,
@@ -248,11 +252,13 @@ export class SupabaseStore implements DataStore {
     return data ? mapMeeting(data as MeetingRow) : null;
   }
 
-  async listMeetings(): Promise<Meeting[]> {
-    const { data, error } = await this.client
+  async listMeetings(kind?: MeetingKind): Promise<Meeting[]> {
+    let query = this.client
       .from("meetings")
       .select("*")
       .order("created_at", { ascending: false });
+    if (kind) query = query.eq("kind", kind);
+    const { data, error } = await query;
     if (error) fail("listMeetings", error);
     return ((data ?? []) as MeetingRow[]).map(mapMeeting);
   }

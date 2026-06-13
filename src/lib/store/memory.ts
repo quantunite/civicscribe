@@ -21,6 +21,7 @@ import {
   type Job,
   type JobType,
   type Meeting,
+  type MeetingKind,
   type MeetingStatus,
   type MeetingSummaryContent,
   type NewMeeting,
@@ -119,7 +120,11 @@ export class MemoryStore implements DataStore {
         parsed && typeof parsed === "object" ? parsed : {}
       ) as Record<string, unknown>;
       this.db = {
-        meetings: asArray<Meeting>(rec.meetings),
+        // Coerce legacy rows written before the kind column existed.
+        meetings: asArray<Meeting>(rec.meetings).map((m) => ({
+          ...m,
+          kind: m.kind ?? "civic",
+        })),
         transcripts: asArray<Transcript>(rec.transcripts),
         utterances: asArray<Utterance>(rec.utterances),
         summaries: asArray<Summary>(rec.summaries),
@@ -154,6 +159,7 @@ export class MemoryStore implements DataStore {
         title: input.title,
         body_name: input.body_name,
         source_type: input.source_type,
+        kind: input.kind ?? "civic",
         source_url: input.source_url ?? null,
         status: "pending",
         error_message: null,
@@ -176,12 +182,15 @@ export class MemoryStore implements DataStore {
     });
   }
 
-  listMeetings(): Promise<Meeting[]> {
+  listMeetings(kind?: MeetingKind): Promise<Meeting[]> {
     return this.withLock(async () => {
       const db = await this.load();
+      const all = kind
+        ? db.meetings.filter((m) => m.kind === kind)
+        : db.meetings;
       // Newest first; insertion order breaks created_at ties deterministically.
-      const indexOf = new Map(db.meetings.map((m, i) => [m.id, i]));
-      return [...db.meetings]
+      const indexOf = new Map(all.map((m, i) => [m.id, i]));
+      return [...all]
         .sort(
           (a, b) =>
             b.created_at.localeCompare(a.created_at) ||

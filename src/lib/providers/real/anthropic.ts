@@ -9,7 +9,7 @@ import { z } from "zod";
 
 import type { AppConfig } from "@/lib/config";
 import type { SummaryInput, SummaryProvider } from "@/lib/providers/types";
-import type { MeetingSummaryContent } from "@/lib/types";
+import type { MeetingKind, MeetingSummaryContent } from "@/lib/types";
 
 const MAX_TOKENS = 8_192;
 
@@ -24,6 +24,26 @@ You will receive a diarized transcript of a public government meeting (city coun
 - "full_markdown": a complete narrative summary in Markdown with headed sections (e.g. ## Overview, ## Decisions, ## Public Comment, ## Action Items), written so someone who missed the meeting fully understands what occurred.
 
 Rules: only report what the transcript supports — never invent names, votes, or outcomes. Attribute statements to speaker labels as given. Respond with the JSON object only.`;
+
+// Crash Course Corner: the same JSON schema, but reframed as study notes for an
+// educational video. The "key_decisions" slot carries key concepts and the
+// "action_items" slot carries takeaways (the UI relabels them accordingly).
+const COURSE_SYSTEM_PROMPT = `You are an expert study-notes writer for CivicScribe's Crash Course Corner. You help a busy learner digest an educational video — a tutorial, lecture, talk, or explainer — quickly, without watching it.
+
+You will receive a transcript of the video (it has no speaker labels). Produce faithful, plain-language study notes as a single JSON object with exactly these fields:
+
+- "overview": a tight TL;DR in 2-4 short paragraphs — what the video teaches and the main thread of the explanation or walkthrough.
+- "key_decisions": an array of strings, one per KEY CONCEPT the video teaches — the core ideas, definitions, techniques, steps, or claims the learner should understand. Empty array if none.
+- "action_items": an array of strings, one per KEY TAKEAWAY — things to remember, try, or do next based on the video. Empty array if none.
+- "topics": an array of short subject tags (2-5 words each) covering what the video covers.
+- "full_markdown": complete study notes in Markdown with headed sections (e.g. ## TL;DR, ## Key concepts, ## Key takeaways, ## Worth remembering), written so the learner fully grasps the material without watching.
+
+Rules: only report what the transcript supports — never invent facts, names, numbers, or claims. Respond with the JSON object only.`;
+
+/** Civic summary prompt by default; the study-notes prompt for course videos. */
+export function buildSystemPrompt(kind: MeetingKind | undefined): string {
+  return kind === "course" ? COURSE_SYSTEM_PROMPT : SYSTEM_PROMPT;
+}
 
 // JSON Schema for output_config.format — mirrors MeetingSummaryContent.
 const MEETING_SUMMARY_JSON_SCHEMA: Record<string, unknown> = {
@@ -172,7 +192,7 @@ export class AnthropicSummaryProvider implements SummaryProvider {
       const response = await client.messages.create({
         model: this.config.anthropicModel,
         max_tokens: MAX_TOKENS,
-        system: SYSTEM_PROMPT,
+        system: buildSystemPrompt(input.kind),
         messages: [{ role: "user", content: userContent }],
         output_config: {
           format: {

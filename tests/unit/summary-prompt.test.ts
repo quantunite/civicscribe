@@ -2,7 +2,10 @@
 // (non-diarized) transcripts are formatted as plain text.
 
 import { describe, expect, it } from "vitest";
-import { buildUserContent } from "@/lib/providers/real/anthropic";
+import {
+  buildSystemPrompt,
+  buildUserContent,
+} from "@/lib/providers/real/anthropic";
 
 const base = {
   meetingTitle: "Council Meeting",
@@ -26,5 +29,22 @@ describe("buildUserContent", () => {
     expect(out).not.toContain("Speaker A:");
     expect(out).toContain("Good evening.");
     expect(out).toContain("Motion to approve.");
+  });
+});
+
+describe("buildSystemPrompt", () => {
+  it("civic uses the civic-meeting summarizer prompt", () => {
+    expect(buildSystemPrompt("civic")).toContain("civic meeting summarizer");
+  });
+
+  it("course uses the Crash Course study-notes prompt", () => {
+    const p = buildSystemPrompt("course");
+    expect(p).toContain("Crash Course Corner");
+    expect(p).toMatch(/study[- ]notes/i);
+    expect(p).toContain("KEY CONCEPT");
+  });
+
+  it("undefined defaults to the civic prompt", () => {
+    expect(buildSystemPrompt(undefined)).toBe(buildSystemPrompt("civic"));
   });
 });

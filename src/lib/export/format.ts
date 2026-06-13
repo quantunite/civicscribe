@@ -3,6 +3,7 @@
 // transcripts (transcript.diarized === false) render text only.
 
 import type { MeetingDetail, Utterance } from "@/lib/types";
+import { summaryLabels } from "@/lib/summary-labels";
 
 export type ExportFormat = "txt" | "md" | "srt" | "json";
 
@@ -76,14 +77,15 @@ export function toMarkdown(detail: MeetingDetail): string {
   const out: string[] = [`# ${meeting.title}`, "", `**${meeting.body_name}** · ${meetingDate(detail)}`, ""];
 
   if (summary) {
+    const labels = summaryLabels(meeting.kind);
     out.push("## Summary", "", summary.overview, "");
     if (summary.key_decisions.length > 0) {
-      out.push("### Key decisions", "");
+      out.push(`### ${labels.keyPoints}`, "");
       for (const d of summary.key_decisions) out.push(`- ${d}`);
       out.push("");
     }
     if (summary.action_items.length > 0) {
-      out.push("### Action items", "");
+      out.push(`### ${labels.takeaways}`, "");
       for (const a of summary.action_items) out.push(`- ${a}`);
       out.push("");
     }

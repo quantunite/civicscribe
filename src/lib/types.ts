@@ -4,6 +4,10 @@
 
 export type SourceType = "zoom" | "stream" | "upload";
 
+/** Civic meetings vs. Crash Course Corner educational videos. Drives the
+ *  summary prompt + section labels and which dashboard a meeting appears on. */
+export type MeetingKind = "civic" | "course";
+
 export type MeetingStatus =
   | "pending"
   | "capturing"
@@ -17,6 +21,7 @@ export interface Meeting {
   title: string;
   body_name: string;
   source_type: SourceType;
+  kind: MeetingKind;
   source_url: string | null;
   status: MeetingStatus;
   error_message: string | null;
@@ -30,6 +35,8 @@ export interface NewMeeting {
   title: string;
   body_name: string;
   source_type: SourceType;
+  /** Defaults to "civic" when omitted. */
+  kind?: MeetingKind;
   source_url?: string | null;
   scheduled_at?: string | null;
   audio_storage_path?: string | null;

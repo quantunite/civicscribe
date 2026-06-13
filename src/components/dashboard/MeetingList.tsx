@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import type { Meeting } from "@/lib/types";
+import type { Meeting, MeetingKind } from "@/lib/types";
 import MeetingCard from "@/components/dashboard/MeetingCard";
 import { isProcessingStatus } from "@/components/dashboard/StatusBadge";
 
@@ -16,9 +16,12 @@ const POLL_INTERVAL_MS = 3000;
  */
 export default function MeetingList({
   initialMeetings,
+  kind,
 }: {
   initialMeetings: Meeting[];
+  kind: MeetingKind;
 }) {
+  const isCourse = kind === "course";
   const [meetings, setMeetings] = useState<Meeting[]>(initialMeetings);
   const hasProcessing = meetings.some((m) => isProcessingStatus(m.status));
 
@@ -32,7 +35,9 @@ export default function MeetingList({
     let cancelled = false;
     const timer = setInterval(async () => {
       try {
-        const res = await fetch("/api/meetings", { cache: "no-store" });
+        const res = await fetch(`/api/meetings?kind=${kind}`, {
+          cache: "no-store",
+        });
         if (!res.ok) return;
         const data = (await res.json()) as Meeting[];
         if (!cancelled && Array.isArray(data)) {
@@ -47,33 +52,38 @@ export default function MeetingList({
       cancelled = true;
       clearInterval(timer);
     };
-  }, [hasProcessing]);
+  }, [hasProcessing, kind]);
 
   if (meetings.length === 0) {
     return (
       <section
-        aria-label="No meetings yet"
+        aria-label={isCourse ? "No videos yet" : "No meetings yet"}
         className="rounded-xl border border-dashed border-line-strong bg-surface px-6 py-14 text-center"
       >
-        <h2 className="text-2xl">No meetings yet</h2>
+        <h2 className="text-2xl">
+          {isCourse ? "No videos yet" : "No meetings yet"}
+        </h2>
         <p className="mx-auto mt-3 max-w-xl text-ink-soft">
-          Add your first meeting to start building a searchable archive — paste
-          a Zoom link, a public stream URL, or upload a recording.
+          {isCourse
+            ? "Paste an educational video and CivicScribe fetches the captions and writes you study notes — no watching required."
+            : "Add your first meeting to start building a searchable archive — paste a Zoom link, a public stream URL, or upload a recording."}
         </p>
         <div className="mt-6 flex flex-col items-center gap-4">
           <Link
-            href="/meetings/new"
+            href={isCourse ? "/crash-course/new" : "/meetings/new"}
             className="inline-flex min-h-12 items-center gap-2 rounded-md bg-accent px-6 font-semibold text-white shadow-sm hover:bg-accent-strong"
           >
-            Add a meeting
+            {isCourse ? "Add a video" : "Add a meeting"}
           </Link>
-          <p className="text-sm text-ink-soft">
-            Or run{" "}
-            <code className="rounded bg-primary-soft px-2 py-1 font-mono text-sm text-primary-strong">
-              npm run seed
-            </code>{" "}
-            to load two example meetings.
-          </p>
+          {!isCourse && (
+            <p className="text-sm text-ink-soft">
+              Or run{" "}
+              <code className="rounded bg-primary-soft px-2 py-1 font-mono text-sm text-primary-strong">
+                npm run seed
+              </code>{" "}
+              to load two example meetings.
+            </p>
+          )}
         </div>
       </section>
     );

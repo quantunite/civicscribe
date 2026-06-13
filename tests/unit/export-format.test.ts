@@ -24,6 +24,7 @@ function meeting(over: Partial<Meeting> = {}): Meeting {
     title: "Council Regular Session",
     body_name: "Lawrence City Council",
     source_type: "stream",
+    kind: "civic",
     source_url: "https://x/v",
     status: "complete",
     error_message: null,
@@ -114,6 +115,17 @@ describe("toMarkdown", () => {
     expect(out).toContain("- Approved parks budget 4-1");
     expect(out).toContain("## Transcript");
     expect(out).toContain("**Speaker A:** Good evening.");
+  });
+
+  it("relabels the summary sections for course videos", () => {
+    const out = toMarkdown({
+      ...captionDetail,
+      meeting: meeting({ kind: "course" }),
+    });
+    expect(out).toContain("### Key concepts");
+    expect(out).toContain("### Key takeaways");
+    expect(out).not.toContain("### Key decisions");
+    expect(out).not.toContain("### Action items");
   });
 });
 

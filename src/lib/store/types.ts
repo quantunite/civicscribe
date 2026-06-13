@@ -13,6 +13,7 @@ import type {
   Job,
   JobType,
   Meeting,
+  MeetingKind,
   MeetingStatus,
   NewMeeting,
   NewUtterance,
@@ -28,8 +29,8 @@ export interface DataStore {
   // -- meetings -------------------------------------------------------------
   createMeeting(input: NewMeeting): Promise<Meeting>;
   getMeeting(id: string): Promise<Meeting | null>;
-  /** Newest first. */
-  listMeetings(): Promise<Meeting[]>;
+  /** Newest first. Optionally restrict to a single kind (civic vs course). */
+  listMeetings(kind?: MeetingKind): Promise<Meeting[]>;
   updateMeeting(
     id: string,
     patch: Partial<

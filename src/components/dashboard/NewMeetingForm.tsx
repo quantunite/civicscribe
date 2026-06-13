@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { Meeting } from "@/lib/types";
+import type { Meeting, MeetingKind } from "@/lib/types";
 
 type TabKey = "zoom" | "stream" | "upload";
 
@@ -85,10 +85,18 @@ const inputClass =
 const labelClass = "block font-semibold text-ink";
 const errorClass = "mt-2 text-sm font-medium text-red-800";
 
-export default function NewMeetingForm() {
+export default function NewMeetingForm({
+  kind = "civic",
+}: {
+  kind?: MeetingKind;
+}) {
   const router = useRouter();
+  const isCourse = kind === "course";
 
-  const [activeTab, setActiveTab] = useState<TabKey>("zoom");
+  // Courses are URL/upload videos, never Zoom — default to the Stream tab.
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    isCourse ? "stream" : "zoom"
+  );
   const [title, setTitle] = useState("");
   const [bodyName, setBodyName] = useState("");
   const [zoomUrl, setZoomUrl] = useState("");
@@ -208,6 +216,7 @@ export default function NewMeetingForm() {
         const formData = new FormData();
         formData.set("title", title.trim());
         formData.set("body_name", bodyName.trim());
+        formData.set("kind", kind);
         if (file) formData.set("file", file);
         res = await fetch("/api/upload", { method: "POST", body: formData });
       } else {
@@ -219,6 +228,7 @@ export default function NewMeetingForm() {
             title: title.trim(),
             body_name: bodyName.trim(),
             source_type: activeTab,
+            kind,
             source_url: sourceUrl,
           }),
         });
@@ -317,7 +327,8 @@ export default function NewMeetingForm() {
 
         <div>
           <label htmlFor="meeting-body-name" className={labelClass}>
-            Public body <span aria-hidden="true" className="text-red-700">*</span>
+            {isCourse ? "Channel or subject" : "Public body"}{" "}
+            <span aria-hidden="true" className="text-red-700">*</span>
             <span className="sr-only">(required)</span>
           </label>
           <input
@@ -332,7 +343,7 @@ export default function NewMeetingForm() {
             aria-describedby={
               errors.bodyName ? "error-body-name" : "hint-body-name"
             }
-            placeholder="Lawrence City Council"
+            placeholder={isCourse ? "RoboNuggets" : "Lawrence City Council"}
             className={inputClass}
           />
           {errors.bodyName ? (
@@ -341,7 +352,9 @@ export default function NewMeetingForm() {
             </p>
           ) : (
             <p id="hint-body-name" className="mt-2 text-sm text-ink-soft">
-              The committee, council, or board that held the meeting.
+              {isCourse
+                ? "The channel, course, or creator behind the video."
+                : "The committee, council, or board that held the meeting."}
             </p>
           )}
         </div>

@@ -30,6 +30,7 @@ export async function handleSummarize(
   const content = await providers.summary.summarize({
     meetingTitle: meeting.title,
     bodyName: meeting.body_name,
+    kind: meeting.kind,
     diarized: transcript.diarized,
     utterances: utterances.map((u) => ({
       speaker: u.speaker_name ?? `Speaker ${u.speaker_label}`,

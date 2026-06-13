@@ -183,10 +183,16 @@ export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
 
   return (
     <div className="flex flex-col gap-8">
+      {detail.meeting.kind === "course" && (
+        <p className="inline-flex w-fit items-center gap-2 rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-sm font-semibold text-indigo-800">
+          Crash Course
+        </p>
+      )}
       <SummaryPanel
         summary={detail.summary}
         status={status}
         errorMessage={detail.meeting.error_message}
+        kind={detail.meeting.kind}
       />
 
       {hasTranscript && (

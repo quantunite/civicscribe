@@ -337,3 +337,49 @@ test("fallback: a stream URL without captions uses the diarized audio path", asy
     transcript.getByRole("button", { name: /Edit name for speaker A/ }).first()
   ).toBeVisible();
 });
+
+test("crash course corner: a course video gets study-labeled study notes", async ({
+  page,
+  request,
+}) => {
+  const title = "E2E Course Video";
+  const create = await request.post("/api/meetings", {
+    data: {
+      title,
+      body_name: "RoboNuggets",
+      source_type: "stream",
+      kind: "course",
+      source_url: "https://www.youtube.com/watch?v=e2ecourse",
+    },
+  });
+  expect(create.ok()).toBeTruthy();
+  const meetingId = ((await create.json()) as { id: string }).id;
+
+  await driveToComplete(request, meetingId);
+
+  // Shows in the Crash Course Corner...
+  await page.goto("/crash-course");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Crash Course Corner" })
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+
+  // ...but NOT on the civic Meetings dashboard.
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
+
+  // Detail page: Crash Course tag + study-oriented summary section labels.
+  await page.goto(`/meetings/${meetingId}`);
+  await expect(page.getByText("Complete", { exact: true })).toBeVisible();
+  await expect(page.getByText("Crash Course", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Key concepts" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Key takeaways" })
+  ).toBeVisible();
+  // Civic labels must NOT appear for a course video.
+  await expect(
+    page.getByRole("heading", { name: "Key decisions" })
+  ).toHaveCount(0);
+});

@@ -81,6 +81,7 @@ export async function POST(request: Request) {
   const title = form.get("title");
   const bodyName = form.get("body_name");
   const file = form.get("file");
+  const kind = form.get("kind") === "course" ? "course" : "civic";
 
   if (typeof title !== "string" || title.trim() === "") {
     return NextResponse.json({ error: "title is required" }, { status: 400 });
@@ -120,6 +121,7 @@ export async function POST(request: Request) {
       title: title.trim(),
       body_name: bodyName.trim(),
       source_type: "upload",
+      kind,
     });
 
     const storagePath = `meetings/${meeting.id}/audio${ext}`;

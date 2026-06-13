@@ -3,7 +3,12 @@
 // implementation (src/lib/providers/mock/). MOCK_MODE=true switches all
 // providers to mocks via getProviders() in src/lib/providers/index.ts.
 
-import type { Meeting, MeetingSummaryContent, Summary } from "@/lib/types";
+import type {
+  Meeting,
+  MeetingKind,
+  MeetingSummaryContent,
+  Summary,
+} from "@/lib/types";
 
 /** Audio handed between pipeline stages: either raw bytes or a fetchable URL. */
 export type AudioSource =
@@ -73,6 +78,8 @@ export interface TranscriptionProvider {
 export interface SummaryInput {
   meetingTitle: string;
   bodyName: string;
+  /** Defaults to "civic". "course" selects the study-notes prompt. */
+  kind?: MeetingKind;
   /** Defaults to true. When false the transcript has no speaker labels
    *  (caption fast lane) and is formatted without "Speaker:" prefixes. */
   diarized?: boolean;

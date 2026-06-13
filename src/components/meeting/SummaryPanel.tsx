@@ -2,7 +2,8 @@
 // when present; while the pipeline is still running it shows an accessible
 // live-updating progress note instead.
 
-import type { MeetingStatus, Summary } from "@/lib/types";
+import type { MeetingKind, MeetingStatus, Summary } from "@/lib/types";
+import { summaryLabels } from "@/lib/summary-labels";
 
 const PROGRESS_NOTES: Partial<Record<MeetingStatus, string>> = {
   pending: "This meeting is queued for processing.",
@@ -15,13 +16,17 @@ interface SummaryPanelProps {
   summary: Summary | null;
   status: MeetingStatus;
   errorMessage: string | null;
+  kind: MeetingKind;
 }
 
 export function SummaryPanel({
   summary,
   status,
   errorMessage,
+  kind,
 }: SummaryPanelProps) {
+  const labels = summaryLabels(kind);
+
   if (!summary) {
     if (status === "failed") {
       return (
@@ -77,7 +82,7 @@ export function SummaryPanel({
             id="key-decisions-heading"
             className="text-sm font-bold uppercase tracking-wide text-teal-800"
           >
-            Key decisions
+            {labels.keyPoints}
           </h3>
           {summary.key_decisions.length > 0 ? (
             <ul className="mt-2 space-y-2">
@@ -105,7 +110,7 @@ export function SummaryPanel({
             id="action-items-heading"
             className="text-sm font-bold uppercase tracking-wide text-teal-800"
           >
-            Action items
+            {labels.takeaways}
           </h3>
           {summary.action_items.length > 0 ? (
             <ul className="mt-2 space-y-2">

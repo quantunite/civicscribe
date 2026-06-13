@@ -5,7 +5,7 @@ import MeetingList from "@/components/dashboard/MeetingList";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const meetings = await getStore().listMeetings();
+  const meetings = await getStore().listMeetings("civic");
 
   return (
     <div className="flex flex-col gap-8">
@@ -16,7 +16,7 @@ export default async function DashboardPage() {
           automatically — completed ones open to a full transcript and summary.
         </p>
       </div>
-      <MeetingList initialMeetings={meetings} />
+      <MeetingList initialMeetings={meetings} kind="civic" />
     </div>
   );
 }

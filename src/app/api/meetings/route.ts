@@ -46,6 +46,7 @@ const createMeetingSchema = z
     title: z.string().trim().min(1, "title is required").max(300),
     body_name: z.string().trim().min(1, "body_name is required").max(300),
     source_type: z.enum(["zoom", "stream"]),
+    kind: z.enum(["civic", "course"]).optional(),
     source_url: z.string().trim().min(1, "source_url is required"),
   })
   .superRefine((data, ctx) => {
@@ -78,10 +79,13 @@ const createMeetingSchema = z
     }
   });
 
-/** GET /api/meetings — all meetings, newest first. */
-export async function GET() {
+/** GET /api/meetings — meetings newest first; optional ?kind=civic|course. */
+export async function GET(request: Request) {
   try {
-    const meetings = await getStore().listMeetings();
+    const kindParam = new URL(request.url).searchParams.get("kind");
+    const kind =
+      kindParam === "civic" || kindParam === "course" ? kindParam : undefined;
+    const meetings = await getStore().listMeetings(kind);
     return NextResponse.json(meetings);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to list meetings";
@@ -122,6 +126,7 @@ export async function POST(request: Request) {
       title: parsed.data.title,
       body_name: parsed.data.body_name,
       source_type: parsed.data.source_type,
+      kind: parsed.data.kind,
       source_url: parsed.data.source_url,
     });
     try {
