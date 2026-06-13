@@ -25,7 +25,14 @@ export async function POST(request: Request): Promise<NextResponse> {
   let schedulesFired = 0;
   try {
     const swept = await sweepSchedules(getStore());
-    schedulesFired = swept.fired.length;
+    schedulesFired = swept.fired.filter((f) => f.meetingId && !f.skipped).length;
+    for (const f of swept.fired) {
+      if (f.fireFailed) {
+        console.error(
+          `[tick] schedule ${f.scheduleId} failed to fire occurrence ${f.occurrenceKey} (will retry): ${f.error}`
+        );
+      }
+    }
   } catch (err) {
     console.error("[tick] schedule sweep failed:", err);
   }

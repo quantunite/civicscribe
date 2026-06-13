@@ -15,6 +15,9 @@ export interface ScheduleFireResult {
   occurrenceKey: string;
   meetingId: string | null;
   skipped: boolean;
+  /** True when the occurrence could not be materialized (resolve failure or a
+   *  store error); next_fire_at is NOT advanced so the next tick retries. */
+  fireFailed: boolean;
   error?: string;
 }
 
@@ -36,6 +39,7 @@ export async function sweepSchedules(
       occurrenceKey,
       meetingId: null,
       skipped: false,
+      fireFailed: false,
     };
 
     try {
@@ -44,12 +48,15 @@ export async function sweepSchedules(
         occurrenceKey
       );
       if (existing) {
+        // Already materialized (a prior tick, or a concurrent tick that won the
+        // unique-index race). Safe to treat as fired and advance.
         result.skipped = true;
         result.meetingId = existing.id;
       } else {
         const url = resolveCaptureUrl(schedule.source_spec);
         if (!url) {
           result.skipped = true;
+          result.fireFailed = true;
           result.error = "source could not be resolved to a URL";
         } else {
           const meeting = await createAndEnqueueCapture(store, {
@@ -65,23 +72,28 @@ export async function sweepSchedules(
         }
       }
     } catch (err) {
-      // A unique-violation here means a concurrent tick already materialized
-      // this occurrence — treat it as already-fired, not a hard error.
+      // Any throw here (transient store error, or a unique-index violation from
+      // a concurrent tick) means THIS tick did not materialize the occurrence.
+      // Don't advance: leave the schedule due so the next tick retries — it will
+      // either find the row now committed (existing -> advance) or re-create it.
       result.skipped = true;
+      result.fireFailed = true;
       result.error = err instanceof Error ? err.message : String(err);
     }
 
-    // Advance to the next occurrence strictly after now (skip missed ones).
-    let next = nextFire(schedule.recurrence, new Date(occurrenceKey));
-    let guard = 0;
-    while (next.getTime() <= now.getTime() && guard < 5000) {
-      next = nextFire(schedule.recurrence, next);
-      guard += 1;
+    if (!result.fireFailed) {
+      // Advance to the next occurrence strictly after now (skip missed ones).
+      let next = nextFire(schedule.recurrence, new Date(occurrenceKey));
+      let guard = 0;
+      while (next.getTime() <= now.getTime() && guard < 5000) {
+        next = nextFire(schedule.recurrence, next);
+        guard += 1;
+      }
+      await store.updateSchedule(schedule.id, {
+        next_fire_at: next.toISOString(),
+        last_fired_at: now.toISOString(),
+      });
     }
-    await store.updateSchedule(schedule.id, {
-      next_fire_at: next.toISOString(),
-      last_fired_at: now.toISOString(),
-    });
 
     fired.push(result);
   }

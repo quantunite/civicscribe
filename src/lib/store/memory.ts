@@ -165,6 +165,21 @@ export class MemoryStore implements DataStore {
   createMeeting(input: NewMeeting): Promise<Meeting> {
     return this.withLock(async () => {
       const db = await this.load();
+      // Mirror the Supabase partial unique index on (schedule_id,
+      // occurrence_key): one meeting per scheduled occurrence, so overlapping
+      // scheduler ticks can't double-materialize under MOCK_MODE either.
+      if (input.schedule_id != null && input.occurrence_key != null) {
+        const dup = db.meetings.find(
+          (m) =>
+            m.schedule_id === input.schedule_id &&
+            m.occurrence_key === input.occurrence_key
+        );
+        if (dup) {
+          throw new Error(
+            `duplicate occurrence ${input.occurrence_key} for schedule ${input.schedule_id}`
+          );
+        }
+      }
       const meeting: Meeting = {
         id: randomUUID(),
         title: input.title,

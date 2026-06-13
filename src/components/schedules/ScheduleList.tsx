@@ -9,7 +9,12 @@ import { describeRecurrence } from "@/lib/schedule/describe";
 function formatInstant(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString();
+  // Pinned locale so the date format itself is stable; the time-of-day is still
+  // rendered in the runtime's timezone, so the server (UTC) and client (local)
+  // differ — the <dd> carries suppressHydrationWarning for that intentional gap.
+  return Number.isNaN(d.getTime())
+    ? "—"
+    : d.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 }
 
 export default function ScheduleList({ initial }: { initial: Schedule[] }) {
@@ -111,11 +116,15 @@ export default function ScheduleList({ initial }: { initial: Schedule[] }) {
                 <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-ink-soft">
                   <div className="flex gap-1.5">
                     <dt className="font-medium text-ink">Next run:</dt>
-                    <dd>{formatInstant(s.next_fire_at)}</dd>
+                    <dd suppressHydrationWarning>
+                      {formatInstant(s.next_fire_at)}
+                    </dd>
                   </div>
                   <div className="flex gap-1.5">
                     <dt className="font-medium text-ink">Last run:</dt>
-                    <dd>{formatInstant(s.last_fired_at)}</dd>
+                    <dd suppressHydrationWarning>
+                      {formatInstant(s.last_fired_at)}
+                    </dd>
                   </div>
                 </dl>
               </div>

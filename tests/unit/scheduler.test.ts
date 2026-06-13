@@ -101,6 +101,41 @@ describe("sweepSchedules", () => {
     expect(forOccurrence).toHaveLength(1);
   });
 
+  it("does NOT advance next_fire_at when materialization genuinely fails", async () => {
+    // A transient store failure must not be mistaken for "already fired": the
+    // occurrence stays due so the next tick retries it (no silent dropped capture).
+    class FailingStore extends MemoryStore {
+      async createMeeting(): Promise<never> {
+        throw new Error("transient db error");
+      }
+    }
+    const failing = new FailingStore(dataDir);
+    const schedule = await failing.createSchedule(weeklyTuesday(OCCURRENCE));
+
+    const result = await sweepSchedules(failing, AFTER);
+
+    expect(result.fired[0].error).toBeTruthy();
+    expect(await failing.listMeetings()).toHaveLength(0);
+    // Still due — not advanced past the failed occurrence.
+    expect((await failing.getSchedule(schedule.id))?.next_fire_at).toBe(
+      OCCURRENCE
+    );
+  });
+
+  it("MemoryStore.createMeeting rejects a duplicate (schedule_id, occurrence_key)", async () => {
+    const base = new MemoryStore(dataDir);
+    const common = {
+      body_name: "b",
+      source_type: "stream" as const,
+      schedule_id: "s1",
+      occurrence_key: "o1",
+    };
+    await base.createMeeting({ title: "first", ...common });
+    await expect(
+      base.createMeeting({ title: "second", ...common })
+    ).rejects.toThrow();
+  });
+
   it("catches up a long-stale schedule with one meeting and a future next_fire_at", async () => {
     // 2026-06-02T23:00:00Z is a Tuesday 18:00 CDT, six weeks before AFTER.
     const schedule = await store.createSchedule(

@@ -26,7 +26,18 @@ export function isInternalHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (host === "localhost" || host.endsWith(".localhost")) return true;
   if (host.endsWith(".local")) return true;
-  if (host === "::1" || host === "0.0.0.0") return true;
+
+  // IPv6 literals contain ":"; domains never do (URL.hostname strips the port).
+  if (host.includes(":")) {
+    if (host === "::1" || host === "::") return true; // loopback / unspecified
+    if (/^f[cd]/.test(host)) return true; // fc00::/7 unique-local
+    if (/^fe[89ab]/.test(host)) return true; // fe80::/10 link-local
+    // IPv4-mapped (::ffff:a.b.c.d): re-check the embedded IPv4.
+    const mapped = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(host);
+    if (mapped) return isInternalHost(mapped[1]);
+    return false; // other (global) IPv6 is allowed
+  }
+
   const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
   if (m) {
     const a = Number(m[1]);
