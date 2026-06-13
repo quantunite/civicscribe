@@ -6,6 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
+    "start:railway": "node scripts/railway-start.mjs",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "worker": "tsx scripts/worker.ts",

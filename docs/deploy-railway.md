@@ -1,9 +1,10 @@
 # Deploying CivicScribe to Railway
 
-Two services off this one repo: a **web** service (the Next app, which runs the
-job runner + schedule sweep inside `/api/jobs/tick`) and a **worker** service
-(`npm run worker`, which POSTs that tick every 5s). They communicate over HTTP,
-so they don't need shared memory — the worker just nudges the web app.
+**One service.** `railway.json` sets the start command to `npm run start:railway`
+(`scripts/railway-start.mjs`), which runs `next start` AND an in-process tick
+loop in the same container — so a single service drives both the web app and the
+job runner + schedule sweep. (`npm run worker` is still available if you ever
+prefer a separate worker service, but it isn't needed.)
 
 ## Phase 1 — mock demo (free, no API keys)
 
@@ -11,20 +12,13 @@ Proves the host + URL + schedules end-to-end. `MOCK_MODE=true` uses the
 file-backed MemoryStore, so no Supabase or provider keys are needed. (The
 container filesystem is ephemeral, so demo data resets on redeploy — expected.)
 
-**Web service**
 - New Project → Deploy from GitHub repo → `quantunite/civicscribe`, branch `master`.
-- Build command: `npm run build` (auto-detected). Start command: `npm run start`.
-  `next start` binds to Railway's `$PORT` automatically.
+- Build + start come from `railway.json` (NIXPACKS build → `npm run build`;
+  start → `npm run start:railway`). `next start` binds to Railway's `$PORT`.
 - Variables:
   - `MOCK_MODE=true`
   - `DATA_DIR=/tmp/civicscribe` (writable on Railway)
-- Deploy, then copy the public URL (e.g. `https://civicscribe-web.up.railway.app`).
-
-**Worker service** (same repo, second service)
-- Start command: `npm run worker`.
-- Variables:
-  - `APP_BASE_URL=<the web service public URL>`
-  - (later) `TICK_SECRET=<same value as the web service>` — see Phase 2.
+- Deploy, then generate a public domain.
 
 Smoke test: open the URL, add a meeting (Stream URL), watch it reach
 **Complete** within ~30s; create a schedule and confirm it lists.
