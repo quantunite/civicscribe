@@ -741,6 +741,46 @@ export class SupabaseFileStorage implements FileStorage {
     return { data: bytes, contentType };
   }
 
+  async stat(
+    storagePath: string
+  ): Promise<{ size: number; contentType: string } | null> {
+    const url = await this.signedUrl(storagePath);
+    if (!url) return null;
+    const res = await fetch(url, { method: "HEAD" });
+    if (!res.ok) return null;
+    const size = Number(res.headers.get("content-length") ?? "");
+    if (!Number.isFinite(size)) return null;
+    return {
+      size,
+      contentType:
+        res.headers.get("content-type") || "application/octet-stream",
+    };
+  }
+
+  async getRange(
+    storagePath: string,
+    range?: { start: number; end: number }
+  ): Promise<ReadableStream<Uint8Array> | null> {
+    const url = await this.signedUrl(storagePath);
+    if (!url) return null;
+    const headers: Record<string, string> = {};
+    if (range) headers.Range = `bytes=${range.start}-${range.end}`;
+    // Stream directly from Supabase Storage (which supports Range) instead of
+    // download()-ing the whole object into a Buffer.
+    const res = await fetch(url, { headers });
+    if (!(res.ok || res.status === 206) || !res.body) return null;
+    return res.body as ReadableStream<Uint8Array>;
+  }
+
+  /** Short-lived signed URL for direct, ranged reads from Supabase Storage. */
+  private async signedUrl(storagePath: string): Promise<string | null> {
+    const { data, error } = await this.client.storage
+      .from(AUDIO_BUCKET)
+      .createSignedUrl(normalizeKey(storagePath), 3600);
+    if (error || !data) return null;
+    return data.signedUrl;
+  }
+
   async delete(storagePath: string): Promise<void> {
     const { error } = await this.client.storage
       .from(AUDIO_BUCKET)

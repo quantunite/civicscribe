@@ -183,6 +183,12 @@ function stubFiles(): FileStorage {
         contentType: "audio/wav",
       };
     },
+    async stat() {
+      return null;
+    },
+    async getRange() {
+      return null;
+    },
     async delete() {
       /* not used by the transcribe stage */
     },

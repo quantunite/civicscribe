@@ -145,6 +145,16 @@ export interface DataStore {
 export interface FileStorage {
   put(path: string, data: Buffer, contentType: string): Promise<void>;
   get(path: string): Promise<{ data: Buffer; contentType: string } | null>;
+  /** Size + content type without reading the whole object. Null if missing. */
+  stat(path: string): Promise<{ size: number; contentType: string } | null>;
+  /**
+   * Stream a byte range (inclusive), or the whole object when range is omitted,
+   * WITHOUT buffering the full object in memory. Null if the object is missing.
+   */
+  getRange(
+    path: string,
+    range?: { start: number; end: number }
+  ): Promise<ReadableStream<Uint8Array> | null>;
   /** Remove a stored blob. Best-effort: a missing file is not an error. */
   delete(path: string): Promise<void>;
   /** URL the browser can stream audio from (always /api/audio/<path>). */

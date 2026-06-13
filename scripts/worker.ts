@@ -10,6 +10,8 @@ const BASE_URL = (process.env.APP_BASE_URL ?? "http://localhost:3000").replace(
 );
 const TICK_URL = `${BASE_URL}/api/jobs/tick`;
 const INTERVAL_MS = 5_000;
+// Sent as a bearer when the server enforces TICK_SECRET (public deploy).
+const TICK_SECRET = (process.env.TICK_SECRET ?? "").trim();
 
 interface TickJob {
   id: string;
@@ -33,7 +35,10 @@ let lastState: "busy" | "idle" | "offline" = "busy";
 async function tick(): Promise<void> {
   let result: TickResult;
   try {
-    const res = await fetch(TICK_URL, { method: "POST" });
+    const res = await fetch(TICK_URL, {
+      method: "POST",
+      headers: TICK_SECRET ? { Authorization: `Bearer ${TICK_SECRET}` } : {},
+    });
     if (!res.ok) {
       if (lastState !== "offline") {
         console.log(`[worker] tick returned HTTP ${res.status} — retrying`);

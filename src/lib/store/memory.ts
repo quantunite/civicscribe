@@ -13,8 +13,10 @@
 // the Supabase-backed implementation.
 
 import { randomUUID } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { Readable } from "node:stream";
 
 import {
   MAX_JOB_ATTEMPTS,
@@ -675,20 +677,55 @@ export class LocalFileStorage implements FileStorage {
     } catch {
       return null;
     }
-    let contentType = "application/octet-stream";
+    return { data, contentType: await this.readContentType(full) };
+  }
+
+  async stat(
+    storagePath: string
+  ): Promise<{ size: number; contentType: string } | null> {
+    const full = this.resolvePath(storagePath);
+    let size: number;
     try {
-      const meta: unknown = JSON.parse(await readFile(`${full}.meta.json`, "utf8"));
+      size = (await stat(full)).size;
+    } catch {
+      return null;
+    }
+    return { size, contentType: await this.readContentType(full) };
+  }
+
+  async getRange(
+    storagePath: string,
+    range?: { start: number; end: number }
+  ): Promise<ReadableStream<Uint8Array> | null> {
+    const full = this.resolvePath(storagePath);
+    try {
+      await stat(full);
+    } catch {
+      return null;
+    }
+    const nodeStream = range
+      ? createReadStream(full, { start: range.start, end: range.end })
+      : createReadStream(full);
+    return Readable.toWeb(nodeStream) as unknown as ReadableStream<Uint8Array>;
+  }
+
+  /** Read the content type from the "<path>.meta.json" sidecar. */
+  private async readContentType(full: string): Promise<string> {
+    try {
+      const meta: unknown = JSON.parse(
+        await readFile(`${full}.meta.json`, "utf8")
+      );
       if (
         meta &&
         typeof meta === "object" &&
         typeof (meta as { contentType?: unknown }).contentType === "string"
       ) {
-        contentType = (meta as { contentType: string }).contentType;
+        return (meta as { contentType: string }).contentType;
       }
     } catch {
       // Missing/corrupt sidecar: fall back to the generic content type.
     }
-    return { data, contentType };
+    return "application/octet-stream";
   }
 
   async delete(storagePath: string): Promise<void> {

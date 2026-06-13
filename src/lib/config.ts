@@ -22,6 +22,10 @@ export interface AppConfig {
   captionLangs: string[];
   /** Hard timeout (ms) for a caption fetch before falling back to audio. */
   captionFetchTimeoutMs: number;
+  /** Shared secret required to POST /api/jobs/tick. Null = open (dev default). */
+  tickSecret: string | null;
+  /** Shared secret (URL token) required for the Recall webhook. Null = open. */
+  recallWebhookSecret: string | null;
 }
 
 function env(name: string): string | null {
@@ -52,5 +56,7 @@ export function getConfig(): AppConfig {
       .map((s) => s.trim())
       .filter((s) => s.length > 0),
     captionFetchTimeoutMs: Number(env("CAPTION_FETCH_TIMEOUT_MS") ?? "60000"),
+    tickSecret: env("TICK_SECRET"),
+    recallWebhookSecret: env("RECALL_WEBHOOK_SECRET"),
   };
 }
