@@ -155,6 +155,8 @@ export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
   }, [pendingApply, detail.meeting.id]);
 
   const hasTranscript = detail.utterances.length > 0;
+  // Caption-sourced transcripts have no speaker labels and no audio.
+  const diarized = detail.transcript?.diarized ?? true;
 
   return (
     <div className="flex flex-col gap-8">
@@ -171,6 +173,12 @@ export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
         >
           Transcript
         </h2>
+
+        {hasTranscript && !diarized && (
+          <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
+            From auto-captions — no speaker labels
+          </p>
+        )}
 
         {!hasTranscript ? (
           <p
@@ -214,6 +222,7 @@ export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
             <TranscriptList
               utterances={filtered}
               tokens={tokens}
+              diarized={diarized}
               onSeek={handleSeek}
               onRename={handleRename}
             />

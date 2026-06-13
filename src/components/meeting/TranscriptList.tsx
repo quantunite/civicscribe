@@ -21,6 +21,9 @@ interface TranscriptListProps {
   utterances: Utterance[];
   /** Active search tokens, used to highlight matches with <mark>. */
   tokens: string[];
+  /** Diarized transcripts show per-speaker labels + audio seek + rename;
+   *  caption transcripts (no speakers, no audio) render plain text. */
+  diarized: boolean;
   onSeek: (ms: number) => void;
   onRename: (utteranceId: string, name: string) => Promise<void>;
 }
@@ -28,6 +31,7 @@ interface TranscriptListProps {
 export function TranscriptList({
   utterances,
   tokens,
+  diarized,
   onSeek,
   onRename,
 }: TranscriptListProps) {
@@ -97,11 +101,6 @@ export function TranscriptList({
         {virtualizer.getVirtualItems().map((item) => {
           const utterance = utterances[item.index];
           if (!utterance) return null;
-          const color = speakerColor(utterance.speaker_label);
-          const displayName = speakerDisplayName(
-            utterance.speaker_name,
-            utterance.speaker_label
-          );
           const flashed = flashId === utterance.id;
           return (
             <article
@@ -121,24 +120,35 @@ export function TranscriptList({
                 flashed ? "bg-teal-50 ring-2 ring-inset ring-teal-500" : ""
               }`}
             >
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-3">
-                <button
-                  type="button"
-                  onClick={() => onSeek(utterance.start_ms)}
-                  aria-label={`Play audio from ${formatTimestamp(utterance.start_ms)}`}
-                  title="Play audio from here"
-                  className="rounded font-mono text-base font-medium tabular-nums text-teal-800 underline decoration-teal-300 underline-offset-4 hover:text-teal-950 hover:decoration-teal-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
-                >
-                  {formatTimestamp(utterance.start_ms)}
-                </button>
-                <SpeakerName
-                  utteranceId={utterance.id}
-                  speakerLabel={utterance.speaker_label}
-                  displayName={displayName}
-                  color={color}
-                  onRename={onRename}
-                />
-              </div>
+              {diarized ? (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => onSeek(utterance.start_ms)}
+                    aria-label={`Play audio from ${formatTimestamp(utterance.start_ms)}`}
+                    title="Play audio from here"
+                    className="rounded font-mono text-base font-medium tabular-nums text-teal-800 underline decoration-teal-300 underline-offset-4 hover:text-teal-950 hover:decoration-teal-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+                  >
+                    {formatTimestamp(utterance.start_ms)}
+                  </button>
+                  <SpeakerName
+                    utteranceId={utterance.id}
+                    speakerLabel={utterance.speaker_label}
+                    displayName={speakerDisplayName(
+                      utterance.speaker_name,
+                      utterance.speaker_label
+                    )}
+                    color={speakerColor(utterance.speaker_label)}
+                    onRename={onRename}
+                  />
+                </div>
+              ) : (
+                <div className="px-4 pt-3">
+                  <span className="font-mono text-base font-medium tabular-nums text-slate-500">
+                    {formatTimestamp(utterance.start_ms)}
+                  </span>
+                </div>
+              )}
               <p className="px-4 pb-4 pt-1.5 text-lg leading-[1.7] text-slate-900">
                 <HighlightedText text={utterance.text} tokens={tokens} />
               </p>
