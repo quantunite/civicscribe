@@ -14,7 +14,7 @@ import { YtDlpStreamIngestProvider } from "@/lib/providers/real/ytdlp";
 export function createRealProviders(config: AppConfig): Providers {
   return {
     capture: new RecallCaptureProvider(config),
-    streamIngest: new YtDlpStreamIngestProvider(),
+    streamIngest: new YtDlpStreamIngestProvider(config),
     transcription: new AssemblyAiTranscriptionProvider(config),
     summary: new AnthropicSummaryProvider(config),
     email: new ResendEmailProvider(config),

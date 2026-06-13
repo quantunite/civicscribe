@@ -32,6 +32,11 @@ export interface CaptureProvider {
 // yt-dlp — public stream audio extraction.
 
 export interface StreamIngestProvider {
+  /** Try to fetch an existing caption track for the URL. Returns a
+   *  (non-diarized) transcript on success, or null when no track exists, the
+   *  fast lane is disabled, or fetching fails — the caller then falls back to
+   *  extractAudio. MUST NOT throw for the "no captions" case. */
+  fetchCaptions(streamUrl: string): Promise<TranscriptionResult | null>;
   /** Extract audio from a public stream/video URL. Returns audio bytes. */
   extractAudio(streamUrl: string): Promise<{
     data: Buffer;
@@ -68,6 +73,9 @@ export interface TranscriptionProvider {
 export interface SummaryInput {
   meetingTitle: string;
   bodyName: string;
+  /** Defaults to true. When false the transcript has no speaker labels
+   *  (caption fast lane) and is formatted without "Speaker:" prefixes. */
+  diarized?: boolean;
   utterances: Array<{ speaker: string; text: string }>;
 }
 

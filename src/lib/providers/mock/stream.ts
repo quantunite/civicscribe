@@ -1,11 +1,22 @@
-// Mock yt-dlp stream ingest provider. Returns a synthesized WAV instantly.
+// Mock yt-dlp stream ingest provider. Returns a synthesized WAV instantly, and
+// a fixture caption transcript from fetchCaptions (unless the URL opts out).
 
 import { synthesizeWav } from "@/lib/fixtures/audio";
-import type { StreamIngestProvider } from "@/lib/providers/types";
+import { buildFixtureCaptionResult } from "@/lib/fixtures/captions";
+import type {
+  StreamIngestProvider,
+  TranscriptionResult,
+} from "@/lib/providers/types";
 
 const MOCK_STREAM_SECONDS = 120;
 
 export class MockStreamIngestProvider implements StreamIngestProvider {
+  async fetchCaptions(streamUrl: string): Promise<TranscriptionResult | null> {
+    // A URL containing "nocaptions" exercises the audio fallback path.
+    if (streamUrl.includes("nocaptions")) return null;
+    return buildFixtureCaptionResult();
+  }
+
   async extractAudio(streamUrl: string): Promise<{
     data: Buffer;
     contentType: string;

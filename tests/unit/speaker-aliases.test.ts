@@ -197,7 +197,7 @@ function stubProviders(result: TranscriptionResult): Providers {
       getBotStatus: unused,
       downloadAudio: unused,
     },
-    streamIngest: { extractAudio: unused },
+    streamIngest: { fetchCaptions: unused, extractAudio: unused },
     transcription: {
       async transcribe() {
         return result;
