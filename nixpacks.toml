@@ -1,15 +1,16 @@
-# Force a clean, lockfile-free npm install so Railway's Linux build resolves the
-# platform-native optional deps (@tailwindcss/oxide-*, lightningcss-*) that the
-# Windows-generated package-lock.json omits (npm optional-deps bug #4828). Both
-# x64 and arm64 Linux binaries are pinned as direct optionalDependencies in
-# package.json so the matching arch installs regardless of the builder's CPU.
+# Railway's Linux build can't resolve the platform-native optional deps that the
+# Windows-generated package-lock.json omits (npm optional-deps bug #4828), and
+# the native binary's version must EXACTLY match the resolved oxide/lightningcss
+# version. So: clean (lockfile-free) install, then install the arch+version
+# matched Linux binaries dynamically off whatever versions actually resolved.
+# Builder arch confirmed x86_64. Tailwind is pinned to 4.3.0 for determinism.
 [phases.install]
 cmds = [
-  "uname -m",
   "rm -f package-lock.json",
   "rm -rf node_modules",
   "npm install --include=optional --no-audit --no-fund",
-  "ls node_modules/@tailwindcss | grep oxide || echo 'NO_OXIDE_BINARY'",
+  "node -e \"const v=require('@tailwindcss/oxide/package.json').version;require('child_process').execSync('npm install @tailwindcss/oxide-linux-x64-gnu@'+v+' --no-save --force --no-audit --no-fund',{stdio:'inherit'})\"",
+  "node -e \"try{const v=require('lightningcss/package.json').version;require('child_process').execSync('npm install lightningcss-linux-x64-gnu@'+v+' --no-save --force --no-audit --no-fund',{stdio:'inherit'})}catch(e){console.log('lightningcss not present; skipping')}\"",
 ]
 
 [phases.build]
