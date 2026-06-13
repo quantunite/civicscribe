@@ -58,17 +58,45 @@ describe("parseVtt", () => {
 });
 
 describe("cuesToUtterances", () => {
-  it("labels every utterance CAPTION and collapses consecutive duplicates", () => {
+  it("collapses consecutive duplicates and joins short fragments into one block", () => {
     expect(
       cuesToUtterances([
         { startMs: 0, endMs: 1000, text: "Hello" },
-        { startMs: 1000, endMs: 2000, text: "Hello" },
+        { startMs: 1000, endMs: 2000, text: "Hello" }, // exact dup -> dropped
         { startMs: 2000, endMs: 3000, text: "World" },
       ])
     ).toEqual([
-      { speaker_label: "CAPTION", start_ms: 0, end_ms: 2000, text: "Hello" },
-      { speaker_label: "CAPTION", start_ms: 2000, end_ms: 3000, text: "World" },
+      // Short, no sentence end -> coalesced into a single block spanning all.
+      { speaker_label: "CAPTION", start_ms: 0, end_ms: 3000, text: "Hello World" },
     ]);
+  });
+
+  it("flushes at a sentence boundary once the block is long enough", () => {
+    const s1 = "x".repeat(165) + ".";
+    const s2 = "y".repeat(12) + ".";
+    expect(
+      cuesToUtterances([
+        { startMs: 0, endMs: 1000, text: s1 },
+        { startMs: 1000, endMs: 2000, text: s2 },
+      ])
+    ).toEqual([
+      { speaker_label: "CAPTION", start_ms: 0, end_ms: 1000, text: s1 },
+      { speaker_label: "CAPTION", start_ms: 1000, end_ms: 2000, text: s2 },
+    ]);
+  });
+
+  it("hard-caps long unpunctuated runs so no block runs away", () => {
+    const cues = Array.from({ length: 80 }, (_, i) => ({
+      startMs: i * 100,
+      endMs: i * 100 + 100,
+      text: `word${i}`,
+    }));
+    const out = cuesToUtterances(cues);
+    expect(out.length).toBeGreaterThan(1);
+    for (const u of out) {
+      expect(u.text.length).toBeLessThanOrEqual(360);
+      expect(u.speaker_label).toBe("CAPTION");
+    }
   });
 });
 

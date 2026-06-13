@@ -100,23 +100,64 @@ export function parseVtt(raw: string): CaptionCue[] {
   return cues;
 }
 
-/** Map cues to utterances, collapsing consecutive exact-duplicate text
- *  (common in rolling auto-captions) by extending the previous cue's end. */
+// Caption tracks arrive as many short, often time-overlapping fragments (a few
+// words each). Joined as-is they break the transcript every few words, so we
+// coalesce them into readable blocks that end at sentence boundaries.
+const COALESCE_MIN_CHARS = 160; // don't end a block before this unless forced
+const COALESCE_MAX_CHARS = 360; // hard cap so one block never runs away
+
+function endsSentence(text: string): boolean {
+  return /[.!?…]["'”’)\]]?$/.test(text);
+}
+
+/** Map caption cues to utterances: drop consecutive exact-duplicate fragments
+ *  (rolling auto-captions repeat the visible line), then join the rest into
+ *  sentence/paragraph-sized utterances broken at sentence boundaries. */
 export function cuesToUtterances(cues: CaptionCue[]): DiarizedUtterance[] {
-  const out: DiarizedUtterance[] = [];
+  // 1) Collapse consecutive exact-duplicate fragments, keeping the widest span.
+  const frags: CaptionCue[] = [];
   for (const cue of cues) {
-    const prev = out[out.length - 1];
+    const prev = frags[frags.length - 1];
     if (prev && prev.text === cue.text) {
-      prev.end_ms = Math.max(prev.end_ms, cue.endMs);
+      prev.endMs = Math.max(prev.endMs, cue.endMs);
       continue;
     }
+    frags.push({ startMs: cue.startMs, endMs: cue.endMs, text: cue.text });
+  }
+
+  // 2) Join fragments into blocks, flushing at a sentence end once the block is
+  //    long enough (or at a hard length cap).
+  const out: DiarizedUtterance[] = [];
+  let start = 0;
+  let end = 0;
+  let text = "";
+  const flush = () => {
+    if (text.length === 0) return;
     out.push({
       speaker_label: CAPTION_SPEAKER_LABEL,
-      start_ms: cue.startMs,
-      end_ms: cue.endMs,
-      text: cue.text,
+      start_ms: start,
+      end_ms: end,
+      text,
     });
+    text = "";
+  };
+  for (const f of frags) {
+    if (text.length === 0) {
+      start = f.startMs;
+      end = f.endMs;
+      text = f.text;
+    } else {
+      text = `${text} ${f.text}`.replace(/\s+/g, " ").trim();
+      end = Math.max(end, f.endMs);
+    }
+    if (
+      text.length >= COALESCE_MAX_CHARS ||
+      (endsSentence(text) && text.length >= COALESCE_MIN_CHARS)
+    ) {
+      flush();
+    }
   }
+  flush();
   return out;
 }
 
