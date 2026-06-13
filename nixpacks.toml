@@ -1,13 +1,15 @@
 # Force a clean, lockfile-free npm install so Railway's Linux build resolves the
-# platform-native optional deps (@tailwindcss/oxide-linux-x64-gnu,
-# lightningcss-linux-x64-gnu) that the Windows-generated package-lock.json omits
-# (npm optional-deps bug #4828). Those binaries are also pinned as direct
-# optionalDependencies in package.json.
+# platform-native optional deps (@tailwindcss/oxide-*, lightningcss-*) that the
+# Windows-generated package-lock.json omits (npm optional-deps bug #4828). Both
+# x64 and arm64 Linux binaries are pinned as direct optionalDependencies in
+# package.json so the matching arch installs regardless of the builder's CPU.
 [phases.install]
 cmds = [
+  "uname -m",
   "rm -f package-lock.json",
   "rm -rf node_modules",
   "npm install --include=optional --no-audit --no-fund",
+  "ls node_modules/@tailwindcss | grep oxide || echo 'NO_OXIDE_BINARY'",
 ]
 
 [phases.build]
