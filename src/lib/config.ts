@@ -22,6 +22,9 @@ export interface AppConfig {
   captionLangs: string[];
   /** Hard timeout (ms) for a caption fetch before falling back to audio. */
   captionFetchTimeoutMs: number;
+  /** Shared secret required to invoke the job-tick endpoint (worker/cron).
+   *  Null disables the check (local dev). */
+  cronSecret: string | null;
 }
 
 function env(name: string): string | null {
@@ -52,5 +55,6 @@ export function getConfig(): AppConfig {
       .map((s) => s.trim())
       .filter((s) => s.length > 0),
     captionFetchTimeoutMs: Number(env("CAPTION_FETCH_TIMEOUT_MS") ?? "60000"),
+    cronSecret: env("CRON_SECRET"),
   };
 }

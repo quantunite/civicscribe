@@ -39,6 +39,7 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     captionFastLane: true,
     captionLangs: ["en", "en-US", "en-GB", "en-orig"],
     captionFetchTimeoutMs: 60000,
+    cronSecret: null,
     ...overrides,
   };
 }
