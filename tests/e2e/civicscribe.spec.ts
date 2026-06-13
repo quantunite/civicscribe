@@ -11,8 +11,34 @@
 
 import { rm } from "node:fs/promises";
 import path from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 import { synthesizeWav } from "../../src/lib/fixtures/audio";
+
+/** Drive /api/jobs/tick until the given meeting reaches "complete". Other
+ *  meetings' leftover jobs (e.g. a stray notify) are processed harmlessly
+ *  along the way; the loop re-checks this meeting's status each tick. */
+async function driveToComplete(
+  request: APIRequestContext,
+  meetingId: string
+): Promise<void> {
+  let status = "pending";
+  for (let tick = 0; tick < MAX_TICKS && status !== "complete"; tick++) {
+    const tickRes = await request.post("/api/jobs/tick");
+    expect(tickRes.ok()).toBeTruthy();
+    const res = await request.get(`/api/meetings/${meetingId}`);
+    expect(res.ok()).toBeTruthy();
+    const detail = (await res.json()) as {
+      meeting: { status: string; error_message: string | null };
+    };
+    status = detail.meeting.status;
+    if (status === "failed") {
+      throw new Error(
+        `Pipeline failed: ${detail.meeting.error_message ?? "(no error_message)"}`
+      );
+    }
+  }
+  expect(status).toBe("complete");
+}
 
 const MEETING_TITLE = "E2E Council Meeting";
 const BODY_NAME = "Lawrence City Council";
@@ -231,4 +257,83 @@ test("full pipeline: upload, process, transcript, rename, search", async ({
       )
     ).toBeVisible();
   });
+});
+
+test("caption fast lane: a stream URL with captions summarizes without speakers", async ({
+  page,
+  request,
+}) => {
+  const title = "E2E Caption Stream";
+  const create = await request.post("/api/meetings", {
+    data: {
+      title,
+      body_name: BODY_NAME,
+      source_type: "stream",
+      // Mock fetchCaptions returns the caption fixture for any URL without
+      // "nocaptions", so this exercises the fast lane.
+      source_url: "https://www.youtube.com/watch?v=e2ecaptions",
+    },
+  });
+  expect(create.ok()).toBeTruthy();
+  const meetingId = ((await create.json()) as { id: string }).id;
+
+  await driveToComplete(request, meetingId);
+
+  await page.goto(`/meetings/${meetingId}`);
+  await expect(
+    page.getByRole("heading", { level: 1, name: title })
+  ).toBeVisible();
+  await expect(page.getByText("Complete", { exact: true })).toBeVisible();
+
+  // A summary was produced from the captions.
+  await expect(page.getByRole("heading", { name: "Summary" })).toBeVisible();
+
+  // The caption badge is shown.
+  await expect(page.getByText(/From auto-captions/)).toBeVisible();
+
+  // Transcript shows the caption fixture text and NO speaker edit controls.
+  const transcript = page.getByLabel("Transcript utterances (scrollable)");
+  await expect(transcript).toBeVisible();
+  await expect(transcript).toContainText(
+    "Good evening and welcome to the regular meeting of the City Council."
+  );
+  await expect(
+    transcript.getByRole("button", { name: /Edit name for speaker/ })
+  ).toHaveCount(0);
+});
+
+test("fallback: a stream URL without captions uses the diarized audio path", async ({
+  page,
+  request,
+}) => {
+  const title = "E2E No-Caption Stream";
+  const create = await request.post("/api/meetings", {
+    data: {
+      title,
+      body_name: BODY_NAME,
+      source_type: "stream",
+      // "nocaptions" makes the mock provider return null -> audio fallback.
+      source_url: "https://example.com/nocaptions/meeting",
+    },
+  });
+  expect(create.ok()).toBeTruthy();
+  const meetingId = ((await create.json()) as { id: string }).id;
+
+  await driveToComplete(request, meetingId);
+
+  await page.goto(`/meetings/${meetingId}`);
+  await expect(
+    page.getByRole("heading", { level: 1, name: title })
+  ).toBeVisible();
+  await expect(page.getByText("Complete", { exact: true })).toBeVisible();
+
+  // No caption badge on the diarized path.
+  await expect(page.getByText(/From auto-captions/)).toHaveCount(0);
+
+  // Diarized transcript (52-utterance fixture) keeps speaker edit controls.
+  const transcript = page.getByLabel("Transcript utterances (scrollable)");
+  await expect(transcript).toBeVisible();
+  await expect(
+    transcript.getByRole("button", { name: /Edit name for speaker A/ }).first()
+  ).toBeVisible();
 });
