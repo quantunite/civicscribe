@@ -31,6 +31,8 @@ function meeting(over: Partial<Meeting> = {}): Meeting {
     scheduled_at: null,
     audio_storage_path: null,
     duration_seconds: 65,
+    schedule_id: null,
+    occurrence_key: null,
     created_at: "2026-06-13T10:00:00.000Z",
     ...over,
   };

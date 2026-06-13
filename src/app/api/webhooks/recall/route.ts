@@ -9,6 +9,8 @@
 
 import { NextResponse } from "next/server";
 import { processOneJob } from "@/lib/jobs/runner";
+import { getConfig } from "@/lib/config";
+import { isAuthorized } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +31,19 @@ function eventName(body: unknown): string | null {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  // Interim shared-secret auth: when RECALL_WEBHOOK_SECRET is set, the URL
+  // registered with Recall must carry it (?token=<secret>, or an Authorization
+  // header). Open when unset. This route is only an accelerator, so even a
+  // rejected webhook can't lose data — the capture stage polls bot status as
+  // the source of truth. (Switch to Svix signature verification once a real
+  // Recall endpoint is registered.)
+  const token =
+    new URL(request.url).searchParams.get("token") ??
+    request.headers.get("authorization");
+  if (!isAuthorized(token, getConfig().recallWebhookSecret)) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   let body: unknown = null;
   try {
     body = await request.json();

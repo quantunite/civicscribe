@@ -23,7 +23,13 @@ import {
   type MeetingStatus,
   type MeetingSummaryContent,
   type NewMeeting,
+  type NewSchedule,
   type NewUtterance,
+  type Recurrence,
+  type Schedule,
+  type ScheduleSourceSpec,
+  type ScheduleUpdate,
+  type ScheduledSourceType,
   type SourceType,
   type MeetingKind,
   type SpeakerAlias,
@@ -33,6 +39,7 @@ import {
   type UtteranceSearchResult,
 } from "@/lib/types";
 import type { DataStore, FileStorage } from "@/lib/store/types";
+import { orderSearchResults } from "@/lib/store/search-order";
 
 // ---------------------------------------------------------------------------
 // Local row types (no generated Supabase types available). Enum-ish columns
@@ -51,6 +58,22 @@ interface MeetingRow {
   scheduled_at: string | null;
   audio_storage_path: string | null;
   duration_seconds: number | null;
+  schedule_id: string | null;
+  occurrence_key: string | null;
+  created_at: string;
+}
+
+interface ScheduleRow {
+  id: string;
+  title: string;
+  body_name: string;
+  kind: MeetingKind;
+  source_type: ScheduledSourceType;
+  source_spec: unknown;
+  recurrence: unknown;
+  enabled: boolean;
+  next_fire_at: string;
+  last_fired_at: string | null;
   created_at: string;
 }
 
@@ -130,6 +153,24 @@ function mapMeeting(row: MeetingRow): Meeting {
     scheduled_at: row.scheduled_at,
     audio_storage_path: row.audio_storage_path,
     duration_seconds: row.duration_seconds,
+    schedule_id: row.schedule_id ?? null,
+    occurrence_key: row.occurrence_key ?? null,
+    created_at: row.created_at,
+  };
+}
+
+function mapSchedule(row: ScheduleRow): Schedule {
+  return {
+    id: row.id,
+    title: row.title,
+    body_name: row.body_name,
+    kind: row.kind ?? "civic",
+    source_type: row.source_type,
+    source_spec: row.source_spec as ScheduleSourceSpec,
+    recurrence: row.recurrence as Recurrence,
+    enabled: row.enabled,
+    next_fire_at: row.next_fire_at,
+    last_fired_at: row.last_fired_at,
     created_at: row.created_at,
   };
 }
@@ -235,11 +276,27 @@ export class SupabaseStore implements DataStore {
         source_url: input.source_url ?? null,
         scheduled_at: input.scheduled_at ?? null,
         audio_storage_path: input.audio_storage_path ?? null,
+        schedule_id: input.schedule_id ?? null,
+        occurrence_key: input.occurrence_key ?? null,
       })
       .select()
       .single();
     if (error) fail("createMeeting", error);
     return mapMeeting(data as MeetingRow);
+  }
+
+  async getMeetingByOccurrence(
+    scheduleId: string,
+    occurrenceKey: string
+  ): Promise<Meeting | null> {
+    const { data, error } = await this.client
+      .from("meetings")
+      .select("*")
+      .eq("schedule_id", scheduleId)
+      .eq("occurrence_key", occurrenceKey)
+      .maybeSingle();
+    if (error) fail("getMeetingByOccurrence", error);
+    return data ? mapMeeting(data as MeetingRow) : null;
   }
 
   async getMeeting(id: string): Promise<Meeting | null> {
@@ -656,90 +713,123 @@ export class SupabaseStore implements DataStore {
     if (q === "") return [];
     const limit = opts?.limit ?? 100;
 
-    // Order on the DB query so the fetched window is deterministic across
-    // runs. Fetch-window limitation: when more than `limit` rows match, the
-    // DB returns the first `limit` in (start_ms, id) order — NOT necessarily
-    // the rows the newest-meeting-first sort below would prefer. Acceptable
-    // for single-user v1; fixing it properly needs a joined query.
-    let builder = this.client
-      .from("utterances")
-      .select("id, transcript_id, speaker_label, speaker_name, start_ms, end_ms, text")
-      .textSearch("text_search", q, { type: "websearch" })
-      .order("start_ms", { ascending: true })
-      .order("id", { ascending: true });
-
-    if (opts?.meetingId) {
-      const { data: tData, error: tError } = await this.client
-        .from("transcripts")
-        .select("id")
-        .eq("meeting_id", opts.meetingId);
-      if (tError) fail("searchUtterances (transcripts)", tError);
-      const transcriptIds = ((tData ?? []) as Array<{ id: string }>).map(
-        (t) => t.id
-      );
-      if (transcriptIds.length === 0) return [];
-      builder = builder.in("transcript_id", transcriptIds);
-    }
-
-    const { data, error } = await builder.limit(limit);
+    // Delegate to the search_utterances() RPC (migration 0004), which joins
+    // utterances -> transcripts -> meetings and orders by meetings.created_at
+    // DESC before applying LIMIT, so the fetched window and the final order
+    // agree and the newest meetings' hits are never truncated out. We re-apply
+    // orderSearchResults() defensively so the result is byte-for-byte the same
+    // ordering MemoryStore produces.
+    const { data, error } = await this.client.rpc("search_utterances", {
+      p_query: q,
+      p_limit: limit,
+      p_meeting_id: opts?.meetingId ?? null,
+    });
     if (error) fail("searchUtterances", error);
-    const utterances = ((data ?? []) as UtteranceRow[]).map(mapUtterance);
-    if (utterances.length === 0) return [];
 
-    // Enrich with meeting info: transcript_id -> meeting_id -> meeting.
-    const transcriptIds = [...new Set(utterances.map((u) => u.transcript_id))];
-    const { data: trData, error: trError } = await this.client
-      .from("transcripts")
-      .select("id, meeting_id")
-      .in("id", transcriptIds);
-    if (trError) fail("searchUtterances (join transcripts)", trError);
-    const transcriptToMeetingId = new Map(
-      ((trData ?? []) as Array<{ id: string; meeting_id: string }>).map((t) => [
-        t.id,
-        t.meeting_id,
-      ])
-    );
+    const results: UtteranceSearchResult[] = (
+      (data ?? []) as SearchUtteranceRow[]
+    ).map((row) => ({
+      utterance: {
+        id: row.id,
+        transcript_id: row.transcript_id,
+        speaker_label: row.speaker_label,
+        speaker_name: row.speaker_name,
+        start_ms: row.start_ms,
+        end_ms: row.end_ms,
+        text: row.text,
+      },
+      meeting: {
+        id: row.meeting_id,
+        title: row.meeting_title,
+        body_name: row.meeting_body_name,
+        created_at: row.meeting_created_at,
+      },
+    }));
 
-    const meetingIds = [...new Set([...transcriptToMeetingId.values()])];
-    if (meetingIds.length === 0) return [];
-    const { data: mData, error: mError } = await this.client
-      .from("meetings")
-      .select("id, title, body_name, created_at")
-      .in("id", meetingIds);
-    if (mError) fail("searchUtterances (join meetings)", mError);
-    const meetingsById = new Map(
-      (
-        (mData ?? []) as Array<
-          Pick<Meeting, "id" | "title" | "body_name" | "created_at">
-        >
-      ).map((m) => [m.id, m])
-    );
-
-    const results: UtteranceSearchResult[] = [];
-    for (const utterance of utterances) {
-      const meetingId = transcriptToMeetingId.get(utterance.transcript_id);
-      const meeting = meetingId ? meetingsById.get(meetingId) : undefined;
-      if (!meeting) continue;
-      results.push({
-        utterance,
-        meeting: {
-          id: meeting.id,
-          title: meeting.title,
-          body_name: meeting.body_name,
-          created_at: meeting.created_at,
-        },
-      });
-    }
-
-    results.sort(
-      (a, b) =>
-        b.meeting.created_at.localeCompare(a.meeting.created_at) ||
-        a.meeting.id.localeCompare(b.meeting.id) ||
-        a.utterance.start_ms - b.utterance.start_ms
-    );
-
-    return results.slice(0, limit);
+    return orderSearchResults(results).slice(0, limit);
   }
+
+  // -- schedules --------------------------------------------------------------
+
+  async createSchedule(input: NewSchedule): Promise<Schedule> {
+    const { data, error } = await this.client
+      .from("schedules")
+      .insert({
+        title: input.title,
+        body_name: input.body_name,
+        kind: input.kind ?? "civic",
+        source_type: input.source_type,
+        source_spec: input.source_spec,
+        recurrence: input.recurrence,
+        enabled: input.enabled ?? true,
+        next_fire_at: input.next_fire_at,
+      })
+      .select()
+      .single();
+    if (error) fail("createSchedule", error);
+    return mapSchedule(data as ScheduleRow);
+  }
+
+  async getSchedule(id: string): Promise<Schedule | null> {
+    const { data, error } = await this.client
+      .from("schedules")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) fail("getSchedule", error);
+    return data ? mapSchedule(data as ScheduleRow) : null;
+  }
+
+  async listSchedules(): Promise<Schedule[]> {
+    const { data, error } = await this.client
+      .from("schedules")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) fail("listSchedules", error);
+    return ((data ?? []) as ScheduleRow[]).map(mapSchedule);
+  }
+
+  async updateSchedule(id: string, patch: ScheduleUpdate): Promise<Schedule> {
+    const { data, error } = await this.client
+      .from("schedules")
+      .update(patch)
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) fail("updateSchedule", error);
+    return mapSchedule(data as ScheduleRow);
+  }
+
+  async deleteSchedule(id: string): Promise<void> {
+    const { error } = await this.client.from("schedules").delete().eq("id", id);
+    if (error) fail("deleteSchedule", error);
+  }
+
+  async listDueSchedules(now: Date): Promise<Schedule[]> {
+    const { data, error } = await this.client
+      .from("schedules")
+      .select("*")
+      .eq("enabled", true)
+      .lte("next_fire_at", now.toISOString())
+      .order("next_fire_at", { ascending: true });
+    if (error) fail("listDueSchedules", error);
+    return ((data ?? []) as ScheduleRow[]).map(mapSchedule);
+  }
+}
+
+/** One row returned by the search_utterances() RPC (migration 0004). */
+interface SearchUtteranceRow {
+  id: string;
+  transcript_id: string;
+  speaker_label: string;
+  speaker_name: string | null;
+  start_ms: number;
+  end_ms: number;
+  text: string;
+  meeting_id: string;
+  meeting_title: string;
+  meeting_body_name: string;
+  meeting_created_at: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -772,6 +862,46 @@ export class SupabaseFileStorage implements FileStorage {
     const contentType =
       data.type && data.type !== "" ? data.type : "application/octet-stream";
     return { data: bytes, contentType };
+  }
+
+  async stat(
+    storagePath: string
+  ): Promise<{ size: number; contentType: string } | null> {
+    const url = await this.signedUrl(storagePath);
+    if (!url) return null;
+    const res = await fetch(url, { method: "HEAD" });
+    if (!res.ok) return null;
+    const size = Number(res.headers.get("content-length") ?? "");
+    if (!Number.isFinite(size)) return null;
+    return {
+      size,
+      contentType:
+        res.headers.get("content-type") || "application/octet-stream",
+    };
+  }
+
+  async getRange(
+    storagePath: string,
+    range?: { start: number; end: number }
+  ): Promise<ReadableStream<Uint8Array> | null> {
+    const url = await this.signedUrl(storagePath);
+    if (!url) return null;
+    const headers: Record<string, string> = {};
+    if (range) headers.Range = `bytes=${range.start}-${range.end}`;
+    // Stream directly from Supabase Storage (which supports Range) instead of
+    // download()-ing the whole object into a Buffer.
+    const res = await fetch(url, { headers });
+    if (!(res.ok || res.status === 206) || !res.body) return null;
+    return res.body as ReadableStream<Uint8Array>;
+  }
+
+  /** Short-lived signed URL for direct, ranged reads from Supabase Storage. */
+  private async signedUrl(storagePath: string): Promise<string | null> {
+    const { data, error } = await this.client.storage
+      .from(AUDIO_BUCKET)
+      .createSignedUrl(normalizeKey(storagePath), 3600);
+    if (error || !data) return null;
+    return data.signedUrl;
   }
 
   async delete(storagePath: string): Promise<void> {

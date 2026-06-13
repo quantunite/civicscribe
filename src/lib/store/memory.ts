@@ -13,8 +13,10 @@
 // the Supabase-backed implementation.
 
 import { randomUUID } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { Readable } from "node:stream";
 
 import {
   MAX_JOB_ATTEMPTS,
@@ -25,7 +27,10 @@ import {
   type MeetingStatus,
   type MeetingSummaryContent,
   type NewMeeting,
+  type NewSchedule,
   type NewUtterance,
+  type Schedule,
+  type ScheduleUpdate,
   type SpeakerAlias,
   type Summary,
   type Transcript,
@@ -33,6 +38,7 @@ import {
   type UtteranceSearchResult,
 } from "@/lib/types";
 import type { DataStore, FileStorage } from "@/lib/store/types";
+import { orderSearchResults } from "@/lib/store/search-order";
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -44,6 +50,7 @@ interface DbShape {
   summaries: Summary[];
   speaker_aliases: SpeakerAlias[];
   jobs: Job[];
+  schedules: Schedule[];
 }
 
 function emptyDb(): DbShape {
@@ -54,6 +61,7 @@ function emptyDb(): DbShape {
     summaries: [],
     speaker_aliases: [],
     jobs: [],
+    schedules: [],
   };
 }
 
@@ -124,12 +132,15 @@ export class MemoryStore implements DataStore {
         meetings: asArray<Meeting>(rec.meetings).map((m) => ({
           ...m,
           kind: m.kind ?? "civic",
+          schedule_id: m.schedule_id ?? null,
+          occurrence_key: m.occurrence_key ?? null,
         })),
         transcripts: asArray<Transcript>(rec.transcripts),
         utterances: asArray<Utterance>(rec.utterances),
         summaries: asArray<Summary>(rec.summaries),
         speaker_aliases: asArray<SpeakerAlias>(rec.speaker_aliases),
         jobs: asArray<Job>(rec.jobs),
+        schedules: asArray<Schedule>(rec.schedules),
       };
     } catch {
       // Missing or corrupt file: start empty.
@@ -154,6 +165,21 @@ export class MemoryStore implements DataStore {
   createMeeting(input: NewMeeting): Promise<Meeting> {
     return this.withLock(async () => {
       const db = await this.load();
+      // Mirror the Supabase partial unique index on (schedule_id,
+      // occurrence_key): one meeting per scheduled occurrence, so overlapping
+      // scheduler ticks can't double-materialize under MOCK_MODE either.
+      if (input.schedule_id != null && input.occurrence_key != null) {
+        const dup = db.meetings.find(
+          (m) =>
+            m.schedule_id === input.schedule_id &&
+            m.occurrence_key === input.occurrence_key
+        );
+        if (dup) {
+          throw new Error(
+            `duplicate occurrence ${input.occurrence_key} for schedule ${input.schedule_id}`
+          );
+        }
+      }
       const meeting: Meeting = {
         id: randomUUID(),
         title: input.title,
@@ -166,6 +192,8 @@ export class MemoryStore implements DataStore {
         scheduled_at: input.scheduled_at ?? null,
         audio_storage_path: input.audio_storage_path ?? null,
         duration_seconds: null,
+        schedule_id: input.schedule_id ?? null,
+        occurrence_key: input.occurrence_key ?? null,
         created_at: now(),
       };
       db.meetings.push(meeting);
@@ -178,6 +206,20 @@ export class MemoryStore implements DataStore {
     return this.withLock(async () => {
       const db = await this.load();
       const meeting = db.meetings.find((m) => m.id === id);
+      return meeting ? clone(meeting) : null;
+    });
+  }
+
+  getMeetingByOccurrence(
+    scheduleId: string,
+    occurrenceKey: string
+  ): Promise<Meeting | null> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const meeting = db.meetings.find(
+        (m) =>
+          m.schedule_id === scheduleId && m.occurrence_key === occurrenceKey
+      );
       return meeting ? clone(meeting) : null;
     });
   }
@@ -624,14 +666,86 @@ export class MemoryStore implements DataStore {
         });
       }
 
-      results.sort(
-        (a, b) =>
-          b.meeting.created_at.localeCompare(a.meeting.created_at) ||
-          a.meeting.id.localeCompare(b.meeting.id) ||
-          a.utterance.start_ms - b.utterance.start_ms
-      );
+      return orderSearchResults(results).slice(0, limit);
+    });
+  }
 
-      return results.slice(0, limit);
+  // -- schedules --------------------------------------------------------------
+
+  createSchedule(input: NewSchedule): Promise<Schedule> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const schedule: Schedule = {
+        id: randomUUID(),
+        title: input.title,
+        body_name: input.body_name,
+        kind: input.kind ?? "civic",
+        source_type: input.source_type,
+        source_spec: input.source_spec,
+        recurrence: input.recurrence,
+        enabled: input.enabled ?? true,
+        next_fire_at: input.next_fire_at,
+        last_fired_at: null,
+        created_at: now(),
+      };
+      db.schedules.push(schedule);
+      await this.persist();
+      return clone(schedule);
+    });
+  }
+
+  getSchedule(id: string): Promise<Schedule | null> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const s = db.schedules.find((x) => x.id === id);
+      return s ? clone(s) : null;
+    });
+  }
+
+  listSchedules(): Promise<Schedule[]> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      return clone(
+        [...db.schedules].sort((a, b) =>
+          b.created_at.localeCompare(a.created_at)
+        )
+      );
+    });
+  }
+
+  updateSchedule(id: string, patch: ScheduleUpdate): Promise<Schedule> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const s = db.schedules.find((x) => x.id === id);
+      if (!s) throw new Error(`Schedule not found: ${id}`);
+      for (const [key, value] of Object.entries(patch)) {
+        if (value !== undefined) {
+          (s as unknown as Record<string, unknown>)[key] = value;
+        }
+      }
+      await this.persist();
+      return clone(s);
+    });
+  }
+
+  deleteSchedule(id: string): Promise<void> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const idx = db.schedules.findIndex((x) => x.id === id);
+      if (idx === -1) return;
+      db.schedules.splice(idx, 1);
+      await this.persist();
+    });
+  }
+
+  listDueSchedules(nowDate: Date): Promise<Schedule[]> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const nowIso = nowDate.toISOString();
+      const due = db.schedules
+        .filter((s) => s.enabled && s.next_fire_at <= nowIso)
+        .sort((a, b) => a.next_fire_at.localeCompare(b.next_fire_at));
+      return clone(due);
     });
   }
 }
@@ -681,20 +795,55 @@ export class LocalFileStorage implements FileStorage {
     } catch {
       return null;
     }
-    let contentType = "application/octet-stream";
+    return { data, contentType: await this.readContentType(full) };
+  }
+
+  async stat(
+    storagePath: string
+  ): Promise<{ size: number; contentType: string } | null> {
+    const full = this.resolvePath(storagePath);
+    let size: number;
     try {
-      const meta: unknown = JSON.parse(await readFile(`${full}.meta.json`, "utf8"));
+      size = (await stat(full)).size;
+    } catch {
+      return null;
+    }
+    return { size, contentType: await this.readContentType(full) };
+  }
+
+  async getRange(
+    storagePath: string,
+    range?: { start: number; end: number }
+  ): Promise<ReadableStream<Uint8Array> | null> {
+    const full = this.resolvePath(storagePath);
+    try {
+      await stat(full);
+    } catch {
+      return null;
+    }
+    const nodeStream = range
+      ? createReadStream(full, { start: range.start, end: range.end })
+      : createReadStream(full);
+    return Readable.toWeb(nodeStream) as unknown as ReadableStream<Uint8Array>;
+  }
+
+  /** Read the content type from the "<path>.meta.json" sidecar. */
+  private async readContentType(full: string): Promise<string> {
+    try {
+      const meta: unknown = JSON.parse(
+        await readFile(`${full}.meta.json`, "utf8")
+      );
       if (
         meta &&
         typeof meta === "object" &&
         typeof (meta as { contentType?: unknown }).contentType === "string"
       ) {
-        contentType = (meta as { contentType: string }).contentType;
+        return (meta as { contentType: string }).contentType;
       }
     } catch {
       // Missing/corrupt sidecar: fall back to the generic content type.
     }
-    return { data, contentType };
+    return "application/octet-stream";
   }
 
   async delete(storagePath: string): Promise<void> {

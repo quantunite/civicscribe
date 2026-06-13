@@ -56,13 +56,13 @@ export async function GET(
   }
 
   const storagePath = segments.join("/");
-  const file = await getFileStorage().get(storagePath);
-  if (!file) {
+  const storage = getFileStorage();
+  const meta = await storage.stat(storagePath);
+  if (!meta) {
     return new Response("Not found", { status: 404 });
   }
 
-  const { data, contentType } = file;
-  const size = data.byteLength;
+  const { size, contentType } = meta;
   const baseHeaders: Record<string, string> = {
     "Content-Type": contentType || "application/octet-stream",
     "Accept-Ranges": "bytes",
@@ -84,18 +84,27 @@ export async function GET(
         },
       });
     }
-    const chunk = data.subarray(range.start, range.end + 1);
-    return new Response(new Uint8Array(chunk), {
+    // Stream only the requested window — the storage layer never buffers the
+    // whole object in memory.
+    const stream = await storage.getRange(storagePath, range);
+    if (!stream) {
+      return new Response("Not found", { status: 404 });
+    }
+    return new Response(stream, {
       status: 206,
       headers: {
         ...baseHeaders,
         "Content-Range": `bytes ${range.start}-${range.end}/${size}`,
-        "Content-Length": String(chunk.byteLength),
+        "Content-Length": String(range.end - range.start + 1),
       },
     });
   }
 
-  return new Response(new Uint8Array(data), {
+  const stream = await storage.getRange(storagePath);
+  if (!stream) {
+    return new Response("Not found", { status: 404 });
+  }
+  return new Response(stream, {
     status: 200,
     headers: {
       ...baseHeaders,

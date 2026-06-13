@@ -16,7 +16,10 @@ import type {
   MeetingKind,
   MeetingStatus,
   NewMeeting,
+  NewSchedule,
   NewUtterance,
+  Schedule,
+  ScheduleUpdate,
   SpeakerAlias,
   Summary,
   Transcript,
@@ -29,6 +32,12 @@ export interface DataStore {
   // -- meetings -------------------------------------------------------------
   createMeeting(input: NewMeeting): Promise<Meeting>;
   getMeeting(id: string): Promise<Meeting | null>;
+  /** The meeting a schedule already materialized for an occurrence, if any.
+   *  Used by the scheduler to stay idempotent across overlapping ticks. */
+  getMeetingByOccurrence(
+    scheduleId: string,
+    occurrenceKey: string
+  ): Promise<Meeting | null>;
   /** Newest first. Optionally restrict to a single kind (civic vs course). */
   listMeetings(kind?: MeetingKind): Promise<Meeting[]>;
   updateMeeting(
@@ -140,11 +149,31 @@ export interface DataStore {
     query: string,
     opts?: { meetingId?: string; limit?: number }
   ): Promise<UtteranceSearchResult[]>;
+
+  // -- schedules --------------------------------------------------------------
+  createSchedule(input: NewSchedule): Promise<Schedule>;
+  getSchedule(id: string): Promise<Schedule | null>;
+  /** Newest first. */
+  listSchedules(): Promise<Schedule[]>;
+  updateSchedule(id: string, patch: ScheduleUpdate): Promise<Schedule>;
+  deleteSchedule(id: string): Promise<void>;
+  /** Enabled schedules whose next_fire_at <= now, soonest fire first. */
+  listDueSchedules(now: Date): Promise<Schedule[]>;
 }
 
 export interface FileStorage {
   put(path: string, data: Buffer, contentType: string): Promise<void>;
   get(path: string): Promise<{ data: Buffer; contentType: string } | null>;
+  /** Size + content type without reading the whole object. Null if missing. */
+  stat(path: string): Promise<{ size: number; contentType: string } | null>;
+  /**
+   * Stream a byte range (inclusive), or the whole object when range is omitted,
+   * WITHOUT buffering the full object in memory. Null if the object is missing.
+   */
+  getRange(
+    path: string,
+    range?: { start: number; end: number }
+  ): Promise<ReadableStream<Uint8Array> | null>;
   /** Remove a stored blob. Best-effort: a missing file is not an error. */
   delete(path: string): Promise<void>;
   /** URL the browser can stream audio from (always /api/audio/<path>). */

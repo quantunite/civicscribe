@@ -1,0 +1,55 @@
+# Deploying CivicScribe to Railway
+
+Two services off this one repo: a **web** service (the Next app, which runs the
+job runner + schedule sweep inside `/api/jobs/tick`) and a **worker** service
+(`npm run worker`, which POSTs that tick every 5s). They communicate over HTTP,
+so they don't need shared memory — the worker just nudges the web app.
+
+## Phase 1 — mock demo (free, no API keys)
+
+Proves the host + URL + schedules end-to-end. `MOCK_MODE=true` uses the
+file-backed MemoryStore, so no Supabase or provider keys are needed. (The
+container filesystem is ephemeral, so demo data resets on redeploy — expected.)
+
+**Web service**
+- New Project → Deploy from GitHub repo → `quantunite/civicscribe`, branch `master`.
+- Build command: `npm run build` (auto-detected). Start command: `npm run start`.
+  `next start` binds to Railway's `$PORT` automatically.
+- Variables:
+  - `MOCK_MODE=true`
+  - `DATA_DIR=/tmp/civicscribe` (writable on Railway)
+- Deploy, then copy the public URL (e.g. `https://civicscribe-web.up.railway.app`).
+
+**Worker service** (same repo, second service)
+- Start command: `npm run worker`.
+- Variables:
+  - `APP_BASE_URL=<the web service public URL>`
+  - (later) `TICK_SECRET=<same value as the web service>` — see Phase 2.
+
+Smoke test: open the URL, add a meeting (Stream URL), watch it reach
+**Complete** within ~30s; create a schedule and confirm it lists.
+
+## Phase 2 — go live (real transcription + summaries)
+
+Flip the web service to real providers and the dedicated Supabase project.
+
+Add to the **web** service variables:
+- `MOCK_MODE=false`
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (from the
+  `civicscribe` Supabase project; migrations 0001–0005 already applied)
+- `ASSEMBLYAI_API_KEY`, `ANTHROPIC_API_KEY`
+- `APP_BASE_URL=<web public URL>` (used in completion-email links)
+- `TICK_SECRET=<a long random string>` — once set, `/api/jobs/tick` rejects
+  unauthenticated callers. **Set the SAME value on the worker service** so it
+  keeps authenticating (it sends `Authorization: Bearer $TICK_SECRET`).
+- Optional: `RECALL_API_KEY` (Zoom capture), `RESEND_API_KEY` + `NOTIFY_EMAIL`
+  (completion emails), `RECALL_WEBHOOK_SECRET` (if you register a Recall webhook
+  at `…/api/webhooks/recall?token=<secret>`).
+
+Cost: ~$0.17/audio-hr (AssemblyAI) + ~$0.05/audio-hr (Anthropic).
+
+## Notes
+- Production build uses webpack (`next build`), not Turbopack — the Turbopack
+  build fails non-deterministically (see package.json / commit history).
+- The schedule sweep runs on every tick, so a single worker (or any external
+  cron hitting `/api/jobs/tick`) drives both job processing and scheduling.
