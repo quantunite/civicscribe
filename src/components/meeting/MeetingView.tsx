@@ -166,6 +166,32 @@ export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
         errorMessage={detail.meeting.error_message}
       />
 
+      {hasTranscript && (
+        <section
+          aria-label="Download transcript"
+          className="flex flex-wrap items-center gap-2"
+        >
+          <span className="text-base font-semibold text-slate-800">
+            Download:
+          </span>
+          {[
+            { fmt: "txt", label: "Text" },
+            { fmt: "md", label: "Markdown" },
+            { fmt: "srt", label: "Subtitles" },
+            { fmt: "json", label: "JSON" },
+          ].map(({ fmt, label }) => (
+            <a
+              key={fmt}
+              href={`/api/meetings/${detail.meeting.id}/export?format=${fmt}`}
+              download
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-base font-semibold text-teal-800 hover:bg-teal-50 hover:text-teal-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+            >
+              {label}
+            </a>
+          ))}
+        </section>
+      )}
+
       <section aria-labelledby="transcript-heading">
         <h2
           id="transcript-heading"
