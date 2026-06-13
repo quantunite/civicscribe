@@ -383,3 +383,53 @@ test("crash course corner: a course video gets study-labeled study notes", async
     page.getByRole("heading", { name: "Key decisions" })
   ).toHaveCount(0);
 });
+
+test("schedules: create, list, pause, and delete a recurring capture", async ({
+  page,
+  request,
+}) => {
+  const create = await request.post("/api/schedules", {
+    data: {
+      title: "E2E Weekly Council",
+      body_name: "Lawrence City Council",
+      source_type: "stream",
+      source_url: "https://www.youtube.com/@city/live",
+      recurrence: {
+        freq: "weekly",
+        weekday: 2,
+        time: "18:00",
+        timezone: "America/Chicago",
+      },
+    },
+  });
+  expect(create.status()).toBe(201);
+  const schedule = (await create.json()) as {
+    id: string;
+    next_fire_at: string;
+  };
+  expect(schedule.id).toBeTruthy();
+  // next_fire_at is the next future occurrence.
+  expect(new Date(schedule.next_fire_at).getTime()).toBeGreaterThan(Date.now());
+
+  // Renders on the Schedules page with a human-readable cadence.
+  await page.goto("/schedules");
+  await expect(
+    page.getByRole("heading", { name: "E2E Weekly Council" })
+  ).toBeVisible();
+  await expect(page.getByText(/Every Tuesday at 18:00/)).toBeVisible();
+
+  // Pause toggles enabled false.
+  const patch = await request.patch(`/api/schedules/${schedule.id}`, {
+    data: { enabled: false },
+  });
+  expect(patch.ok()).toBeTruthy();
+  expect(((await patch.json()) as { enabled: boolean }).enabled).toBe(false);
+
+  // Delete removes it from the list.
+  const del = await request.delete(`/api/schedules/${schedule.id}`);
+  expect(del.ok()).toBeTruthy();
+  const remaining = (await (await request.get("/api/schedules")).json()) as Array<{
+    id: string;
+  }>;
+  expect(remaining.some((s) => s.id === schedule.id)).toBeFalsy();
+});

@@ -23,7 +23,13 @@ import {
   type MeetingStatus,
   type MeetingSummaryContent,
   type NewMeeting,
+  type NewSchedule,
   type NewUtterance,
+  type Recurrence,
+  type Schedule,
+  type ScheduleSourceSpec,
+  type ScheduleUpdate,
+  type ScheduledSourceType,
   type SourceType,
   type MeetingKind,
   type SpeakerAlias,
@@ -52,6 +58,22 @@ interface MeetingRow {
   scheduled_at: string | null;
   audio_storage_path: string | null;
   duration_seconds: number | null;
+  schedule_id: string | null;
+  occurrence_key: string | null;
+  created_at: string;
+}
+
+interface ScheduleRow {
+  id: string;
+  title: string;
+  body_name: string;
+  kind: MeetingKind;
+  source_type: ScheduledSourceType;
+  source_spec: unknown;
+  recurrence: unknown;
+  enabled: boolean;
+  next_fire_at: string;
+  last_fired_at: string | null;
   created_at: string;
 }
 
@@ -131,6 +153,24 @@ function mapMeeting(row: MeetingRow): Meeting {
     scheduled_at: row.scheduled_at,
     audio_storage_path: row.audio_storage_path,
     duration_seconds: row.duration_seconds,
+    schedule_id: row.schedule_id ?? null,
+    occurrence_key: row.occurrence_key ?? null,
+    created_at: row.created_at,
+  };
+}
+
+function mapSchedule(row: ScheduleRow): Schedule {
+  return {
+    id: row.id,
+    title: row.title,
+    body_name: row.body_name,
+    kind: row.kind ?? "civic",
+    source_type: row.source_type,
+    source_spec: row.source_spec as ScheduleSourceSpec,
+    recurrence: row.recurrence as Recurrence,
+    enabled: row.enabled,
+    next_fire_at: row.next_fire_at,
+    last_fired_at: row.last_fired_at,
     created_at: row.created_at,
   };
 }
@@ -236,11 +276,27 @@ export class SupabaseStore implements DataStore {
         source_url: input.source_url ?? null,
         scheduled_at: input.scheduled_at ?? null,
         audio_storage_path: input.audio_storage_path ?? null,
+        schedule_id: input.schedule_id ?? null,
+        occurrence_key: input.occurrence_key ?? null,
       })
       .select()
       .single();
     if (error) fail("createMeeting", error);
     return mapMeeting(data as MeetingRow);
+  }
+
+  async getMeetingByOccurrence(
+    scheduleId: string,
+    occurrenceKey: string
+  ): Promise<Meeting | null> {
+    const { data, error } = await this.client
+      .from("meetings")
+      .select("*")
+      .eq("schedule_id", scheduleId)
+      .eq("occurrence_key", occurrenceKey)
+      .maybeSingle();
+    if (error) fail("getMeetingByOccurrence", error);
+    return data ? mapMeeting(data as MeetingRow) : null;
   }
 
   async getMeeting(id: string): Promise<Meeting | null> {
@@ -691,6 +747,73 @@ export class SupabaseStore implements DataStore {
     }));
 
     return orderSearchResults(results).slice(0, limit);
+  }
+
+  // -- schedules --------------------------------------------------------------
+
+  async createSchedule(input: NewSchedule): Promise<Schedule> {
+    const { data, error } = await this.client
+      .from("schedules")
+      .insert({
+        title: input.title,
+        body_name: input.body_name,
+        kind: input.kind ?? "civic",
+        source_type: input.source_type,
+        source_spec: input.source_spec,
+        recurrence: input.recurrence,
+        enabled: input.enabled ?? true,
+        next_fire_at: input.next_fire_at,
+      })
+      .select()
+      .single();
+    if (error) fail("createSchedule", error);
+    return mapSchedule(data as ScheduleRow);
+  }
+
+  async getSchedule(id: string): Promise<Schedule | null> {
+    const { data, error } = await this.client
+      .from("schedules")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) fail("getSchedule", error);
+    return data ? mapSchedule(data as ScheduleRow) : null;
+  }
+
+  async listSchedules(): Promise<Schedule[]> {
+    const { data, error } = await this.client
+      .from("schedules")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) fail("listSchedules", error);
+    return ((data ?? []) as ScheduleRow[]).map(mapSchedule);
+  }
+
+  async updateSchedule(id: string, patch: ScheduleUpdate): Promise<Schedule> {
+    const { data, error } = await this.client
+      .from("schedules")
+      .update(patch)
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) fail("updateSchedule", error);
+    return mapSchedule(data as ScheduleRow);
+  }
+
+  async deleteSchedule(id: string): Promise<void> {
+    const { error } = await this.client.from("schedules").delete().eq("id", id);
+    if (error) fail("deleteSchedule", error);
+  }
+
+  async listDueSchedules(now: Date): Promise<Schedule[]> {
+    const { data, error } = await this.client
+      .from("schedules")
+      .select("*")
+      .eq("enabled", true)
+      .lte("next_fire_at", now.toISOString())
+      .order("next_fire_at", { ascending: true });
+    if (error) fail("listDueSchedules", error);
+    return ((data ?? []) as ScheduleRow[]).map(mapSchedule);
   }
 }
 

@@ -28,6 +28,10 @@ export interface Meeting {
   scheduled_at: string | null;
   audio_storage_path: string | null;
   duration_seconds: number | null;
+  /** Set when this meeting was materialized by a schedule (null otherwise). */
+  schedule_id: string | null;
+  /** Per-occurrence idempotency key (the fired next_fire_at); null off-schedule. */
+  occurrence_key: string | null;
   created_at: string;
 }
 
@@ -40,6 +44,79 @@ export interface NewMeeting {
   source_url?: string | null;
   scheduled_at?: string | null;
   audio_storage_path?: string | null;
+  schedule_id?: string | null;
+  occurrence_key?: string | null;
+}
+
+// --- Scheduled / recurring capture -----------------------------------------
+
+/** Where a schedule's capture URL comes from, resolved at fire time. v1 ships
+ *  only fixed_url; channel/playlist resolvers can be added later without a
+ *  schema change to the rest of the schedule. */
+export type ScheduleSourceSpec = { type: "fixed_url"; url: string };
+
+/** Sources that can be auto-captured (upload cannot be scheduled). */
+export type ScheduledSourceType = "zoom" | "stream";
+
+/**
+ * A structured recurrence. weekday is 0=Sunday..6=Saturday; time is local
+ * "HH:mm" in `timezone` (IANA). weekly fires every `interval` weeks (default 1)
+ * on `weekday`; monthly fires the `nth` `weekday` of each month (nth -1 = last).
+ */
+export type Recurrence =
+  | {
+      freq: "weekly";
+      weekday: number;
+      time: string;
+      timezone: string;
+      interval?: number;
+    }
+  | {
+      freq: "monthly";
+      weekday: number;
+      nth: number;
+      time: string;
+      timezone: string;
+    };
+
+export interface Schedule {
+  id: string;
+  title: string;
+  body_name: string;
+  kind: MeetingKind;
+  source_type: ScheduledSourceType;
+  source_spec: ScheduleSourceSpec;
+  recurrence: Recurrence;
+  enabled: boolean;
+  /** Next occurrence to fire (ISO instant). The sweep selects next_fire_at <= now. */
+  next_fire_at: string;
+  last_fired_at: string | null;
+  created_at: string;
+}
+
+export interface NewSchedule {
+  title: string;
+  body_name: string;
+  kind?: MeetingKind;
+  source_type: ScheduledSourceType;
+  source_spec: ScheduleSourceSpec;
+  recurrence: Recurrence;
+  enabled?: boolean;
+  /** First fire instant (ISO); compute with firstFireAfter(recurrence, now). */
+  next_fire_at: string;
+}
+
+/** Fields a schedule update may change. */
+export interface ScheduleUpdate {
+  title?: string;
+  body_name?: string;
+  kind?: MeetingKind;
+  source_type?: ScheduledSourceType;
+  source_spec?: ScheduleSourceSpec;
+  recurrence?: Recurrence;
+  enabled?: boolean;
+  next_fire_at?: string;
+  last_fired_at?: string | null;
 }
 
 export interface Transcript {

@@ -27,7 +27,10 @@ import {
   type MeetingStatus,
   type MeetingSummaryContent,
   type NewMeeting,
+  type NewSchedule,
   type NewUtterance,
+  type Schedule,
+  type ScheduleUpdate,
   type SpeakerAlias,
   type Summary,
   type Transcript,
@@ -47,6 +50,7 @@ interface DbShape {
   summaries: Summary[];
   speaker_aliases: SpeakerAlias[];
   jobs: Job[];
+  schedules: Schedule[];
 }
 
 function emptyDb(): DbShape {
@@ -57,6 +61,7 @@ function emptyDb(): DbShape {
     summaries: [],
     speaker_aliases: [],
     jobs: [],
+    schedules: [],
   };
 }
 
@@ -127,12 +132,15 @@ export class MemoryStore implements DataStore {
         meetings: asArray<Meeting>(rec.meetings).map((m) => ({
           ...m,
           kind: m.kind ?? "civic",
+          schedule_id: m.schedule_id ?? null,
+          occurrence_key: m.occurrence_key ?? null,
         })),
         transcripts: asArray<Transcript>(rec.transcripts),
         utterances: asArray<Utterance>(rec.utterances),
         summaries: asArray<Summary>(rec.summaries),
         speaker_aliases: asArray<SpeakerAlias>(rec.speaker_aliases),
         jobs: asArray<Job>(rec.jobs),
+        schedules: asArray<Schedule>(rec.schedules),
       };
     } catch {
       // Missing or corrupt file: start empty.
@@ -169,6 +177,8 @@ export class MemoryStore implements DataStore {
         scheduled_at: input.scheduled_at ?? null,
         audio_storage_path: input.audio_storage_path ?? null,
         duration_seconds: null,
+        schedule_id: input.schedule_id ?? null,
+        occurrence_key: input.occurrence_key ?? null,
         created_at: now(),
       };
       db.meetings.push(meeting);
@@ -181,6 +191,20 @@ export class MemoryStore implements DataStore {
     return this.withLock(async () => {
       const db = await this.load();
       const meeting = db.meetings.find((m) => m.id === id);
+      return meeting ? clone(meeting) : null;
+    });
+  }
+
+  getMeetingByOccurrence(
+    scheduleId: string,
+    occurrenceKey: string
+  ): Promise<Meeting | null> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const meeting = db.meetings.find(
+        (m) =>
+          m.schedule_id === scheduleId && m.occurrence_key === occurrenceKey
+      );
       return meeting ? clone(meeting) : null;
     });
   }
@@ -628,6 +652,85 @@ export class MemoryStore implements DataStore {
       }
 
       return orderSearchResults(results).slice(0, limit);
+    });
+  }
+
+  // -- schedules --------------------------------------------------------------
+
+  createSchedule(input: NewSchedule): Promise<Schedule> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const schedule: Schedule = {
+        id: randomUUID(),
+        title: input.title,
+        body_name: input.body_name,
+        kind: input.kind ?? "civic",
+        source_type: input.source_type,
+        source_spec: input.source_spec,
+        recurrence: input.recurrence,
+        enabled: input.enabled ?? true,
+        next_fire_at: input.next_fire_at,
+        last_fired_at: null,
+        created_at: now(),
+      };
+      db.schedules.push(schedule);
+      await this.persist();
+      return clone(schedule);
+    });
+  }
+
+  getSchedule(id: string): Promise<Schedule | null> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const s = db.schedules.find((x) => x.id === id);
+      return s ? clone(s) : null;
+    });
+  }
+
+  listSchedules(): Promise<Schedule[]> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      return clone(
+        [...db.schedules].sort((a, b) =>
+          b.created_at.localeCompare(a.created_at)
+        )
+      );
+    });
+  }
+
+  updateSchedule(id: string, patch: ScheduleUpdate): Promise<Schedule> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const s = db.schedules.find((x) => x.id === id);
+      if (!s) throw new Error(`Schedule not found: ${id}`);
+      for (const [key, value] of Object.entries(patch)) {
+        if (value !== undefined) {
+          (s as unknown as Record<string, unknown>)[key] = value;
+        }
+      }
+      await this.persist();
+      return clone(s);
+    });
+  }
+
+  deleteSchedule(id: string): Promise<void> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const idx = db.schedules.findIndex((x) => x.id === id);
+      if (idx === -1) return;
+      db.schedules.splice(idx, 1);
+      await this.persist();
+    });
+  }
+
+  listDueSchedules(nowDate: Date): Promise<Schedule[]> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const nowIso = nowDate.toISOString();
+      const due = db.schedules
+        .filter((s) => s.enabled && s.next_fire_at <= nowIso)
+        .sort((a, b) => a.next_fire_at.localeCompare(b.next_fire_at));
+      return clone(due);
     });
   }
 }
