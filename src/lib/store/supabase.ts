@@ -33,6 +33,7 @@ import {
   type UtteranceSearchResult,
 } from "@/lib/types";
 import type { DataStore, FileStorage } from "@/lib/store/types";
+import { orderSearchResults } from "@/lib/store/search-order";
 
 // ---------------------------------------------------------------------------
 // Local row types (no generated Supabase types available). Enum-ish columns
@@ -656,90 +657,56 @@ export class SupabaseStore implements DataStore {
     if (q === "") return [];
     const limit = opts?.limit ?? 100;
 
-    // Order on the DB query so the fetched window is deterministic across
-    // runs. Fetch-window limitation: when more than `limit` rows match, the
-    // DB returns the first `limit` in (start_ms, id) order — NOT necessarily
-    // the rows the newest-meeting-first sort below would prefer. Acceptable
-    // for single-user v1; fixing it properly needs a joined query.
-    let builder = this.client
-      .from("utterances")
-      .select("id, transcript_id, speaker_label, speaker_name, start_ms, end_ms, text")
-      .textSearch("text_search", q, { type: "websearch" })
-      .order("start_ms", { ascending: true })
-      .order("id", { ascending: true });
-
-    if (opts?.meetingId) {
-      const { data: tData, error: tError } = await this.client
-        .from("transcripts")
-        .select("id")
-        .eq("meeting_id", opts.meetingId);
-      if (tError) fail("searchUtterances (transcripts)", tError);
-      const transcriptIds = ((tData ?? []) as Array<{ id: string }>).map(
-        (t) => t.id
-      );
-      if (transcriptIds.length === 0) return [];
-      builder = builder.in("transcript_id", transcriptIds);
-    }
-
-    const { data, error } = await builder.limit(limit);
+    // Delegate to the search_utterances() RPC (migration 0004), which joins
+    // utterances -> transcripts -> meetings and orders by meetings.created_at
+    // DESC before applying LIMIT, so the fetched window and the final order
+    // agree and the newest meetings' hits are never truncated out. We re-apply
+    // orderSearchResults() defensively so the result is byte-for-byte the same
+    // ordering MemoryStore produces.
+    const { data, error } = await this.client.rpc("search_utterances", {
+      p_query: q,
+      p_limit: limit,
+      p_meeting_id: opts?.meetingId ?? null,
+    });
     if (error) fail("searchUtterances", error);
-    const utterances = ((data ?? []) as UtteranceRow[]).map(mapUtterance);
-    if (utterances.length === 0) return [];
 
-    // Enrich with meeting info: transcript_id -> meeting_id -> meeting.
-    const transcriptIds = [...new Set(utterances.map((u) => u.transcript_id))];
-    const { data: trData, error: trError } = await this.client
-      .from("transcripts")
-      .select("id, meeting_id")
-      .in("id", transcriptIds);
-    if (trError) fail("searchUtterances (join transcripts)", trError);
-    const transcriptToMeetingId = new Map(
-      ((trData ?? []) as Array<{ id: string; meeting_id: string }>).map((t) => [
-        t.id,
-        t.meeting_id,
-      ])
-    );
+    const results: UtteranceSearchResult[] = (
+      (data ?? []) as SearchUtteranceRow[]
+    ).map((row) => ({
+      utterance: {
+        id: row.id,
+        transcript_id: row.transcript_id,
+        speaker_label: row.speaker_label,
+        speaker_name: row.speaker_name,
+        start_ms: row.start_ms,
+        end_ms: row.end_ms,
+        text: row.text,
+      },
+      meeting: {
+        id: row.meeting_id,
+        title: row.meeting_title,
+        body_name: row.meeting_body_name,
+        created_at: row.meeting_created_at,
+      },
+    }));
 
-    const meetingIds = [...new Set([...transcriptToMeetingId.values()])];
-    if (meetingIds.length === 0) return [];
-    const { data: mData, error: mError } = await this.client
-      .from("meetings")
-      .select("id, title, body_name, created_at")
-      .in("id", meetingIds);
-    if (mError) fail("searchUtterances (join meetings)", mError);
-    const meetingsById = new Map(
-      (
-        (mData ?? []) as Array<
-          Pick<Meeting, "id" | "title" | "body_name" | "created_at">
-        >
-      ).map((m) => [m.id, m])
-    );
-
-    const results: UtteranceSearchResult[] = [];
-    for (const utterance of utterances) {
-      const meetingId = transcriptToMeetingId.get(utterance.transcript_id);
-      const meeting = meetingId ? meetingsById.get(meetingId) : undefined;
-      if (!meeting) continue;
-      results.push({
-        utterance,
-        meeting: {
-          id: meeting.id,
-          title: meeting.title,
-          body_name: meeting.body_name,
-          created_at: meeting.created_at,
-        },
-      });
-    }
-
-    results.sort(
-      (a, b) =>
-        b.meeting.created_at.localeCompare(a.meeting.created_at) ||
-        a.meeting.id.localeCompare(b.meeting.id) ||
-        a.utterance.start_ms - b.utterance.start_ms
-    );
-
-    return results.slice(0, limit);
+    return orderSearchResults(results).slice(0, limit);
   }
+}
+
+/** One row returned by the search_utterances() RPC (migration 0004). */
+interface SearchUtteranceRow {
+  id: string;
+  transcript_id: string;
+  speaker_label: string;
+  speaker_name: string | null;
+  start_ms: number;
+  end_ms: number;
+  text: string;
+  meeting_id: string;
+  meeting_title: string;
+  meeting_body_name: string;
+  meeting_created_at: string;
 }
 
 // ---------------------------------------------------------------------------

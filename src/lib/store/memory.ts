@@ -33,6 +33,7 @@ import {
   type UtteranceSearchResult,
 } from "@/lib/types";
 import type { DataStore, FileStorage } from "@/lib/store/types";
+import { orderSearchResults } from "@/lib/store/search-order";
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -624,14 +625,7 @@ export class MemoryStore implements DataStore {
         });
       }
 
-      results.sort(
-        (a, b) =>
-          b.meeting.created_at.localeCompare(a.meeting.created_at) ||
-          a.meeting.id.localeCompare(b.meeting.id) ||
-          a.utterance.start_ms - b.utterance.start_ms
-      );
-
-      return results.slice(0, limit);
+      return orderSearchResults(results).slice(0, limit);
     });
   }
 }
