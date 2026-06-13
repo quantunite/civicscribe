@@ -35,7 +35,7 @@ export default function RootLayout({
           Skip to main content
         </a>
         <header className="bg-primary text-white">
-          <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-8 gap-y-3 px-4 py-4 sm:px-6">
+          <div className="relative mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
             <Link
               href="/"
               className="inline-flex min-h-11 items-center gap-3 rounded-md text-xl font-bold tracking-tight text-white focus-visible:outline-white"
