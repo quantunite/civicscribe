@@ -1,0 +1,67 @@
+# Render Blueprint for CivicScribe.
+#   Deploy: push to GitHub, then New → Blueprint and point Render at this repo.
+#
+# Two services share the same Docker image:
+#   • civicscribe-web    — the Next.js app (public URL)
+#   • civicscribe-worker — polls the web app's /api/jobs/tick to drain the queue
+#
+# Secrets marked `sync: false` must be filled in the Render dashboard.
+# AUTH_SECRET and CRON_SECRET are generated once and shared between services.
+#
+# Note: background workers require a paid Render plan. If you prefer to stay on
+# the free/cron path, drop the worker service and use a Render Cron Job (or
+# Vercel cron — see vercel.json) hitting /api/jobs/tick with the CRON_SECRET.
+
+services:
+  - type: web
+    name: civicscribe-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # --- Auth (single-user password gate) ---
+      - key: APP_PASSWORD
+        sync: false
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      # --- App ---
+      - key: APP_BASE_URL
+        sync: false # e.g. https://civicscribe-web.onrender.com
+      # --- Supabase ---
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # --- External providers ---
+      - key: ASSEMBLYAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: RECALL_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: NOTIFY_EMAIL
+        sync: false
+
+  - type: worker
+    name: civicscribe-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerCommand: npm run worker
+    plan: starter
+    envVars:
+      - key: APP_BASE_URL
+        sync: false # must match the web service's public URL
+      - key: CRON_SECRET
+        fromService:
+          type: web
+          name: civicscribe-web
+          envVarKey: CRON_SECRET

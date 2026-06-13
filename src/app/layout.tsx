@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import SiteNav from "@/components/dashboard/SiteNav";
+import LogoutButton from "@/components/dashboard/LogoutButton";
+import { SESSION_COOKIE, isAuthEnabled, verifySessionToken } from "@/lib/auth";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -23,11 +26,15 @@ export const metadata: Metadata = {
     "Capture, transcribe, and summarize public meetings — a searchable archive of civic business with speaker-labeled transcripts.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const signedIn =
+    isAuthEnabled() &&
+    (await verifySessionToken((await cookies()).get(SESSION_COOKIE)?.value));
+
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} flex min-h-screen flex-col antialiased`}>
@@ -59,7 +66,10 @@ export default function RootLayout({
               </svg>
               CivicScribe
             </Link>
-            <SiteNav />
+            <div className="flex items-center gap-2 sm:gap-4">
+              <SiteNav />
+              {signedIn ? <LogoutButton /> : null}
+            </div>
           </div>
         </header>
         <main id="main-content" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">

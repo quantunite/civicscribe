@@ -1,0 +1,18 @@
+node_modules
+.next
+out
+build
+.git
+.gitignore
+coverage
+test-results
+playwright-report
+.data
+.data-e2e
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+.DS_Store
+# env files — never bake secrets into the image
+.env*
+!.env.example

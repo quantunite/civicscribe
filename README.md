@@ -152,6 +152,18 @@ The Anthropic line is nearly negligible — a summary costs about a dime per
 meeting. Transcription minutes dominate; Zoom bot hours double the marginal
 cost when used.
 
+### Hosting it somewhere
+
+Ready-to-use deploy config is included — **[docs/DEPLOY.md](docs/DEPLOY.md)**
+covers Render (blueprint in `render.yaml`), Railway/Fly/any Docker host
+(`Dockerfile`), and Vercel + cron (`vercel.json`).
+
+Because v1 has no per-user auth, a public deployment needs a gate so strangers
+can't read your archive or spend your API credits. Set **`APP_PASSWORD`** to
+turn on a single shared-password login (and `CRON_SECRET` to protect the job
+tick endpoint). Both are unset — and therefore off — in local/mock mode, so
+nothing changes for development.
+
 ## v2 (explicit non-goals for v1)
 
 - Real-time live captions

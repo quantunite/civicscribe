@@ -11,6 +11,12 @@ const BASE_URL = (process.env.APP_BASE_URL ?? "http://localhost:3000").replace(
 const TICK_URL = `${BASE_URL}/api/jobs/tick`;
 const INTERVAL_MS = 5_000;
 
+// When the app is deployed with CRON_SECRET set, the tick endpoint requires it.
+const CRON_SECRET = (process.env.CRON_SECRET ?? "").trim();
+const TICK_HEADERS: Record<string, string> = CRON_SECRET
+  ? { authorization: `Bearer ${CRON_SECRET}` }
+  : {};
+
 interface TickJob {
   id: string;
   type: string;
@@ -33,7 +39,7 @@ let lastState: "busy" | "idle" | "offline" = "busy";
 async function tick(): Promise<void> {
   let result: TickResult;
   try {
-    const res = await fetch(TICK_URL, { method: "POST" });
+    const res = await fetch(TICK_URL, { method: "POST", headers: TICK_HEADERS });
     if (!res.ok) {
       if (lastState !== "offline") {
         console.log(`[worker] tick returned HTTP ${res.status} — retrying`);
