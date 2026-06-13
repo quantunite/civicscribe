@@ -116,15 +116,18 @@ function parseSummaryText(text: string): MeetingSummaryContent {
   return result.data;
 }
 
-function buildUserContent(input: SummaryInput): string {
-  const transcript = input.utterances
-    .map((u) => `${u.speaker}: ${u.text}`)
-    .join("\n");
+export function buildUserContent(input: SummaryInput): string {
+  const diarized = input.diarized ?? true;
+  const transcript = diarized
+    ? input.utterances.map((u) => `${u.speaker}: ${u.text}`).join("\n")
+    : input.utterances.map((u) => u.text).join("\n");
   return [
     `Meeting title: ${input.meetingTitle}`,
     `Public body: ${input.bodyName}`,
     "",
-    "Diarized transcript:",
+    diarized
+      ? "Diarized transcript:"
+      : "Transcript (auto-captions, no speaker labels):",
     transcript,
   ].join("\n");
 }
