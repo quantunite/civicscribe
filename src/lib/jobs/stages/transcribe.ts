@@ -1,12 +1,16 @@
 // Transcribe stage. Reads the captured audio from file storage, runs the
 // transcription provider (AssemblyAI or mock — transcription + diarization in
-// one call), persists the transcript + utterances, and applies any stored
-// speaker aliases for this meeting's body so recurring speakers get their
-// real names automatically.
+// one call), and persists the transcript + utterances (+ speaker aliases) via
+// the shared persistTranscription helper.
+//
+// Caption fast lane: when the capture stage already produced a transcript from
+// an existing caption track, the meeting has no audio to transcribe — this
+// stage detects that and no-ops, leaving the runner to enqueue summarize.
 
 import type { Job } from "@/lib/types";
 import type { DataStore, FileStorage } from "@/lib/store/types";
 import type { Providers } from "@/lib/providers/types";
+import { persistTranscription } from "@/lib/jobs/persist-transcript";
 
 export async function handleTranscribe(
   job: Job,
@@ -21,7 +25,11 @@ export async function handleTranscribe(
 
   await store.setMeetingStatus(meeting.id, "transcribing");
 
+  // Caption fast lane already produced the transcript in the capture stage and
+  // left no audio behind. Nothing to do — the runner enqueues summarize.
   if (!meeting.audio_storage_path) {
+    const existing = await store.getTranscriptByMeeting(meeting.id);
+    if (existing) return;
     throw new Error(
       `Meeting ${meeting.id} has no audio_storage_path — capture must run first`
     );
@@ -40,41 +48,5 @@ export async function handleTranscribe(
     contentType: audio.contentType,
   });
 
-  const transcript = await store.createTranscript({
-    meeting_id: meeting.id,
-    raw_json: result.rawJson,
-    language: result.language,
-  });
-
-  await store.createUtterances(
-    transcript.id,
-    result.utterances.map((u) => ({
-      speaker_label: u.speaker_label,
-      start_ms: u.start_ms,
-      end_ms: u.end_ms,
-      text: u.text,
-    }))
-  );
-
-  // Apply stored speaker aliases for this body: an alias applies when its
-  // speaker_label_pattern exactly matches an utterance speaker_label.
-  const aliases = await store.listSpeakerAliases(meeting.body_name);
-  if (aliases.length > 0) {
-    const labels = new Set(result.utterances.map((u) => u.speaker_label));
-    for (const alias of aliases) {
-      if (labels.has(alias.speaker_label_pattern)) {
-        await store.applySpeakerNameToLabel(
-          transcript.id,
-          alias.speaker_label_pattern,
-          alias.display_name
-        );
-      }
-    }
-  }
-
-  if (result.durationSeconds != null && meeting.duration_seconds == null) {
-    await store.updateMeeting(meeting.id, {
-      duration_seconds: Math.round(result.durationSeconds),
-    });
-  }
+  await persistTranscription(store, meeting, result, { diarized: true });
 }
