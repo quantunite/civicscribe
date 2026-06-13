@@ -15,6 +15,7 @@ import type { Job, Meeting } from "@/lib/types";
 import type { DataStore, FileStorage } from "@/lib/store/types";
 import type { Providers } from "@/lib/providers/types";
 import { JobNotReadyError } from "@/lib/jobs/errors";
+import { persistTranscription } from "@/lib/jobs/persist-transcript";
 
 /** Give up on a Zoom bot whose recording never becomes ready. */
 const ZOOM_CAPTURE_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -166,6 +167,18 @@ async function captureStream(
   }
 
   await store.setMeetingStatus(meeting.id, "capturing");
+
+  // Fast lane: if the source has an existing caption track, build the
+  // transcript from it and skip both the audio download and AssemblyAI.
+  // fetchCaptions never throws for the "no captions" case — a null result
+  // (no track / fast lane disabled / fetch failed) falls through to audio.
+  const captions = await providers.streamIngest.fetchCaptions(
+    meeting.source_url
+  );
+  if (captions) {
+    await persistTranscription(store, meeting, captions, { diarized: false });
+    return; // no audio stored; the transcribe stage will no-op
+  }
 
   const { data, contentType, durationSeconds } =
     await providers.streamIngest.extractAudio(meeting.source_url);
