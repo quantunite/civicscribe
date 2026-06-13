@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { Meeting } from "@/lib/types";
 import MeetingCard from "@/components/dashboard/MeetingCard";
@@ -21,6 +21,10 @@ export default function MeetingList({
 }) {
   const [meetings, setMeetings] = useState<Meeting[]>(initialMeetings);
   const hasProcessing = meetings.some((m) => isProcessingStatus(m.status));
+
+  const handleDeleted = useCallback((id: string) => {
+    setMeetings((prev) => prev.filter((m) => m.id !== id));
+  }, []);
 
   useEffect(() => {
     if (!hasProcessing) return;
@@ -84,7 +88,11 @@ export default function MeetingList({
       </p>
       <ul className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
         {meetings.map((meeting) => (
-          <MeetingCard key={meeting.id} meeting={meeting} />
+          <MeetingCard
+            key={meeting.id}
+            meeting={meeting}
+            onDeleted={handleDeleted}
+          />
         ))}
       </ul>
     </>

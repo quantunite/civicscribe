@@ -308,6 +308,17 @@ export class SupabaseStore implements DataStore {
     if (error) fail("setMeetingStatus", error);
   }
 
+  async deleteMeeting(id: string): Promise<void> {
+    // transcripts, utterances, summaries, and jobs are all FK'd to meetings
+    // with ON DELETE CASCADE (see 0001_init.sql), so deleting the meeting row
+    // removes every dependent row.
+    const { error } = await this.client
+      .from("meetings")
+      .delete()
+      .eq("id", id);
+    if (error) fail("deleteMeeting", error);
+  }
+
   // -- transcripts & utterances ----------------------------------------------
 
   async createTranscript(input: {
@@ -755,6 +766,13 @@ export class SupabaseFileStorage implements FileStorage {
     const contentType =
       data.type && data.type !== "" ? data.type : "application/octet-stream";
     return { data: bytes, contentType };
+  }
+
+  async delete(storagePath: string): Promise<void> {
+    const { error } = await this.client.storage
+      .from(AUDIO_BUCKET)
+      .remove([normalizeKey(storagePath)]);
+    if (error) fail("storage delete", error);
   }
 
   publicUrl(storagePath: string): string {

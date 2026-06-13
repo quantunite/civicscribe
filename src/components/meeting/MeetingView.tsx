@@ -39,6 +39,9 @@ export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
   const audioRef = useRef<AudioPlayerHandle | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const status = detail.meeting.status;
   const isProcessing = PROCESSING_STATUSES.has(status);
@@ -154,6 +157,26 @@ export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
     }
   }, [pendingApply, detail.meeting.id]);
 
+  const handleDelete = useCallback(async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/meetings/${detail.meeting.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
+      router.push("/");
+      router.refresh();
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error
+          ? `Could not delete the meeting (${err.message}).`
+          : "Could not delete the meeting."
+      );
+      setDeleting(false);
+    }
+  }, [detail.meeting.id, router]);
+
   const hasTranscript = detail.utterances.length > 0;
   // Caption-sourced transcripts have no speaker labels and no audio.
   const diarized = detail.transcript?.diarized ?? true;
@@ -253,6 +276,52 @@ export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
               onRename={handleRename}
             />
           </>
+        )}
+      </section>
+
+      <section
+        aria-label="Delete meeting"
+        className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-6"
+      >
+        {confirmingDelete ? (
+          <>
+            <span className="text-base font-medium text-slate-900">
+              Delete this meeting and its transcript and summary? This cannot be
+              undone.
+            </span>
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={deleting}
+              className="rounded-lg bg-red-700 px-4 py-1.5 text-base font-semibold text-white hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:opacity-60"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmingDelete(false);
+                setDeleteError(null);
+              }}
+              disabled={deleting}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-base font-semibold text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            className="rounded-lg border border-red-300 bg-white px-4 py-1.5 text-base font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
+          >
+            Delete meeting
+          </button>
+        )}
+        {deleteError && (
+          <p role="alert" className="text-base font-medium text-red-700">
+            {deleteError}
+          </p>
         )}
       </section>
 

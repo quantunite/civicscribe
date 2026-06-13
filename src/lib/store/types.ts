@@ -48,6 +48,10 @@ export interface DataStore {
     status: MeetingStatus,
     errorMessage?: string | null
   ): Promise<void>;
+  /** Delete a meeting and all of its dependent rows (transcript, utterances,
+   *  summary, jobs). A no-op if the meeting does not exist. The caller is
+   *  responsible for deleting the audio blob via FileStorage. */
+  deleteMeeting(id: string): Promise<void>;
 
   // -- transcripts & utterances ----------------------------------------------
   /** Create the transcript for a meeting, REPLACING any existing transcript
@@ -140,6 +144,8 @@ export interface DataStore {
 export interface FileStorage {
   put(path: string, data: Buffer, contentType: string): Promise<void>;
   get(path: string): Promise<{ data: Buffer; contentType: string } | null>;
+  /** Remove a stored blob. Best-effort: a missing file is not an error. */
+  delete(path: string): Promise<void>;
   /** URL the browser can stream audio from (always /api/audio/<path>). */
   publicUrl(path: string): string;
 }

@@ -13,7 +13,7 @@
 // the Supabase-backed implementation.
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -232,6 +232,29 @@ export class MemoryStore implements DataStore {
       if (!meeting) throw new Error(`Meeting not found: ${id}`);
       meeting.status = status;
       meeting.error_message = errorMessage ?? null;
+      await this.persist();
+    });
+  }
+
+  deleteMeeting(id: string): Promise<void> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const before = db.meetings.length;
+      db.meetings = db.meetings.filter((m) => m.id !== id);
+      if (db.meetings.length === before) return; // nothing to delete
+
+      // Cascade: drop the meeting's transcript(s), their utterances, its
+      // summary, and its jobs. Speaker aliases are per-body, not per-meeting,
+      // so they are intentionally left alone.
+      const transcriptIds = new Set(
+        db.transcripts.filter((t) => t.meeting_id === id).map((t) => t.id)
+      );
+      db.transcripts = db.transcripts.filter((t) => t.meeting_id !== id);
+      db.utterances = db.utterances.filter(
+        (u) => !transcriptIds.has(u.transcript_id)
+      );
+      db.summaries = db.summaries.filter((s) => s.meeting_id !== id);
+      db.jobs = db.jobs.filter((j) => j.meeting_id !== id);
       await this.persist();
     });
   }
@@ -663,6 +686,13 @@ export class LocalFileStorage implements FileStorage {
       // Missing/corrupt sidecar: fall back to the generic content type.
     }
     return { data, contentType };
+  }
+
+  async delete(storagePath: string): Promise<void> {
+    const full = this.resolvePath(storagePath);
+    // Best-effort: a missing file (or sidecar) must never fail a delete.
+    await rm(full, { force: true }).catch(() => {});
+    await rm(`${full}.meta.json`, { force: true }).catch(() => {});
   }
 
   publicUrl(storagePath: string): string {

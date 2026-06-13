@@ -3,7 +3,7 @@
 // processing pipeline runs.
 
 import { NextResponse } from "next/server";
-import { getStore } from "@/lib/store";
+import { getFileStorage, getStore } from "@/lib/store";
 import type { MeetingDetail, Utterance } from "@/lib/types";
 
 export async function GET(
@@ -28,4 +28,31 @@ export async function GET(
 
   const detail: MeetingDetail = { meeting, transcript, utterances, summary };
   return NextResponse.json(detail);
+}
+
+// DELETE /api/meetings/[id] — remove the meeting, its dependent rows
+// (transcript, utterances, summary, jobs), and its audio blob. Idempotent-ish:
+// a missing meeting returns 404.
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<Response> {
+  const { id } = await params;
+  const store = getStore();
+
+  const meeting = await store.getMeeting(id);
+  if (!meeting) {
+    return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
+  }
+
+  // Delete the audio blob first (best-effort — a missing/failed blob delete
+  // must not strand the meeting row).
+  if (meeting.audio_storage_path) {
+    await getFileStorage()
+      .delete(meeting.audio_storage_path)
+      .catch(() => {});
+  }
+
+  await store.deleteMeeting(id);
+  return new Response(null, { status: 204 });
 }

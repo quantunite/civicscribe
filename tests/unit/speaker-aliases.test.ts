@@ -183,6 +183,9 @@ function stubFiles(): FileStorage {
         contentType: "audio/wav",
       };
     },
+    async delete() {
+      /* not used by the transcribe stage */
+    },
     publicUrl: (p: string) => `/api/audio/${p}`,
   };
 }

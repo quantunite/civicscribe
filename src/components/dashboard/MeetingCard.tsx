@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import type { Meeting } from "@/lib/types";
 import StatusBadge from "@/components/dashboard/StatusBadge";
@@ -30,12 +33,36 @@ export function formatDate(iso: string): string {
   });
 }
 
-export default function MeetingCard({ meeting }: { meeting: Meeting }) {
+export default function MeetingCard({
+  meeting,
+  onDeleted,
+}: {
+  meeting: Meeting;
+  onDeleted: (id: string) => void;
+}) {
   const isComplete = meeting.status === "complete";
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    setError(false);
+    try {
+      const res = await fetch(`/api/meetings/${meeting.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
+      onDeleted(meeting.id);
+    } catch {
+      setError(true);
+      setDeleting(false);
+    }
+  }
 
   const body = (
     <article className="flex h-full flex-col gap-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 pr-9">
         <h2 className="text-xl leading-snug">{meeting.title}</h2>
         <StatusBadge status={meeting.status} />
       </div>
@@ -75,12 +102,11 @@ export default function MeetingCard({ meeting }: { meeting: Meeting }) {
   const cardClass =
     "block h-full rounded-xl border border-line bg-surface p-5 shadow-sm";
 
-  // Every card links to the detail page: complete meetings open the
-  // transcript and summary; processing meetings show live progress; failed
-  // meetings show the full error. The card body contains no interactive
-  // elements, so a single wrapping anchor stays accessible.
+  // The card is a single wrapping anchor; the delete control is a SIBLING of
+  // the anchor (absolutely positioned), never nested inside it, so the markup
+  // stays valid and both targets are independently focusable/clickable.
   return (
-    <li className="h-full">
+    <li className="relative h-full">
       <Link
         href={`/meetings/${meeting.id}`}
         aria-label={
@@ -92,6 +118,59 @@ export default function MeetingCard({ meeting }: { meeting: Meeting }) {
       >
         {body}
       </Link>
+
+      <div className="absolute right-2 top-2 z-10">
+        {confirming ? (
+          <div className="flex items-center gap-1 rounded-lg border border-line-strong bg-surface p-1 shadow-md">
+            <span className="px-1 text-sm font-medium text-ink">
+              {error ? "Failed — retry?" : "Delete?"}
+            </span>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              aria-label={`Confirm delete ${meeting.title}`}
+              className="rounded-md bg-red-700 px-2 py-1 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60"
+            >
+              {deleting ? "…" : "Yes"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setConfirming(false);
+                setError(false);
+              }}
+              disabled={deleting}
+              aria-label="Cancel delete"
+              className="rounded-md border border-line-strong bg-surface px-2 py-1 text-sm font-semibold text-ink hover:bg-primary-soft disabled:opacity-60"
+            >
+              No
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            aria-label={`Delete ${meeting.title}`}
+            title="Delete meeting"
+            className="rounded-md border border-line bg-surface/90 p-1.5 text-ink-soft shadow-sm hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6m3 5v6m4-6v6" />
+            </svg>
+          </button>
+        )}
+      </div>
     </li>
   );
 }
