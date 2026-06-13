@@ -1,0 +1,14 @@
+# Exclude package-lock.json from the Railway build context so nixpacks runs
+# `npm install` (not `npm ci`) and resolves Linux-native optional deps
+# (@tailwindcss/oxide-linux-x64-gnu, lightningcss-linux-*). The committed
+# lockfile is generated on Windows and omits the Linux binaries, which breaks
+# the Tailwind v4 oxide native binding during `next build` on Railway.
+package-lock.json
+
+# Local-only artifacts that don't belong in the deploy.
+node_modules
+.next
+.data
+.data-e2e
+.data-probe
+test-results
