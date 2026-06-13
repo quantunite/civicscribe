@@ -33,6 +33,12 @@ Smoke test: open the URL, add a meeting (Stream URL), watch it reach
 
 Flip the web service to real providers and the dedicated Supabase project.
 
+> **Already provisioned** (2026-06-13): Supabase project `civicscribe`, ref
+> `qohvolrzcijqcfapryee`, URL `https://qohvolrzcijqcfapryee.supabase.co`.
+> Migrations 0001–0005 are applied and the private `meeting-audio` bucket
+> exists. Grab `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` from the
+> dashboard (Project Settings → API).
+
 Add to the **web** service variables:
 - `MOCK_MODE=false`
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (from the
