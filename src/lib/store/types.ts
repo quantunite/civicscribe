@@ -22,6 +22,8 @@ import type {
   ScheduleUpdate,
   SpeakerAlias,
   Summary,
+  TopicMeeting,
+  TopicSummary,
   Transcript,
   Utterance,
   UtteranceSearchResult,
@@ -114,6 +116,19 @@ export interface DataStore {
     content: MeetingSummaryContent
   ): Promise<Summary>;
   getSummaryByMeeting(meetingId: string): Promise<Summary | null>;
+
+  // -- topics (public /tags browse, published-only) ---------------------------
+  /** Every topic carried by a PUBLISHED meeting's summary, as { topic, slug,
+   *  count } buckets. Topics that slugify identically (case/punctuation
+   *  variants) collapse into one bucket; `topic` is the most common raw
+   *  spelling and `count` is the number of distinct published meetings in the
+   *  bucket. Ordered by count desc, then topic asc, for a deterministic cloud.
+   *  Unpublished meetings never contribute. */
+  listTopics(): Promise<TopicSummary[]>;
+  /** Published meetings whose summary topics include the given slug, newest
+   *  first, each carrying the summary fields a card needs. Returns [] for an
+   *  empty/unknown slug. Unpublished meetings are never returned. */
+  getTopicMeetings(slug: string): Promise<TopicMeeting[]>;
 
   // -- speaker aliases ---------------------------------------------------------
   upsertSpeakerAlias(input: {

@@ -199,6 +199,25 @@ export interface UtteranceSearchResult {
   meeting: Pick<Meeting, "id" | "title" | "body_name" | "created_at">;
 }
 
+/** One topic bucket for the public /tags browse surface: a canonical display
+ *  spelling, its URL slug, and how many published meetings carry it. */
+export interface TopicSummary {
+  /** Canonical display spelling for the slug (the most common raw topic). */
+  topic: string;
+  /** URL-safe slug (see topicSlug); the join key for /tags/[slug]. */
+  slug: string;
+  /** Number of distinct published meetings whose summary carries this topic. */
+  count: number;
+}
+
+/** A published meeting surfaced on a topic page, with the summary fields a
+ *  card needs (the full summary markdown is intentionally omitted). */
+export interface TopicMeeting {
+  meeting: Meeting;
+  overview: string;
+  topics: string[];
+}
+
 /** The structured summary shape returned by the SummaryProvider. */
 export interface MeetingSummaryContent {
   overview: string;
