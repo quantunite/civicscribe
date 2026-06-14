@@ -27,10 +27,10 @@ You will receive a diarized transcript of a public government meeting (city coun
 
 Rules: only report what the transcript supports — never invent names, votes, or outcomes. Attribute statements to speaker labels as given. Respond with the JSON object only.`;
 
-// Crash Course Corner: the same JSON schema, but reframed as study notes for an
+// Study Notes: the same JSON schema, but reframed as study notes for an
 // educational video. The "key_decisions" slot carries key concepts and the
 // "action_items" slot carries takeaways (the UI relabels them accordingly).
-const COURSE_SYSTEM_PROMPT = `You are an expert study-notes writer for CivicScribe's Crash Course Corner. You help a busy learner digest an educational video — a tutorial, lecture, talk, or explainer — quickly, without watching it.
+const COURSE_SYSTEM_PROMPT = `You are an expert study-notes writer for CivicScribe's Study Notes feature. You help a busy learner digest an educational video — a tutorial, lecture, talk, or explainer — quickly, without watching it.
 
 You will receive a transcript of the video (it has no speaker labels). Produce faithful, plain-language study notes as a single JSON object with exactly these fields:
 

@@ -78,7 +78,7 @@ export default function MeetingList({
         </p>
         <div className="mt-6 flex flex-col items-center gap-4">
           <Link
-            href={isCourse ? "/crash-course/new" : "/meetings/new"}
+            href={isCourse ? "/study-notes/new" : "/meetings/new"}
             className="inline-flex min-h-12 items-center gap-2 rounded-md bg-accent px-6 font-semibold text-white shadow-sm hover:bg-accent-strong"
           >
             {isCourse ? "Add a video" : "Add a meeting"}

@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 const PUBLIC_LINKS = [
   { href: "/", label: "Meetings" },
   { href: "/library", label: "Library" },
-  { href: "/crash-course", label: "Crash Course Corner" },
+  { href: "/study-notes", label: "Study Notes" },
   { href: "/search", label: "Search" },
 ] as const;
 

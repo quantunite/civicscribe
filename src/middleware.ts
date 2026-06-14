@@ -64,7 +64,7 @@ function hasValidCredential(request: NextRequest, secret: string): boolean {
  *  AND path matter: GET reads of the same paths are public. */
 function isAdminSurface(method: string, pathname: string): boolean {
   // --- gated pages (any method, normally GET navigations) ---
-  // NOTE: /meetings/new and /crash-course/new are deliberately PUBLIC. Generation
+  // NOTE: /meetings/new and /study-notes/new are deliberately PUBLIC. Generation
   // is open-with-guardrails (the public submits; an admin later approves to
   // publish), so the submit forms must stay reachable even when OWNER_SECRET is
   // set. The mutating POST routes they call (POST /api/meetings, /api/upload)

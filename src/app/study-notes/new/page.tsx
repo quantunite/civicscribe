@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import NewMeetingForm from "@/components/dashboard/NewMeetingForm";
 
 export const metadata: Metadata = {
-  title: "Add a video: Crash Course Corner",
+  title: "Add a video: Study Notes",
   description:
-    "Add an educational video to the Crash Course Corner. CivicScribe fetches the captions and writes study notes.",
+    "Add an educational video to Study Notes. CivicScribe fetches the captions and writes study notes.",
 };
 
 export default function NewCoursePage() {

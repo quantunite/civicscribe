@@ -301,7 +301,7 @@ export default function NewScheduleForm() {
             className={inputClass}
           >
             <option value="civic">Civic meeting</option>
-            <option value="course">Crash Course video</option>
+            <option value="course">Study Notes video</option>
           </select>
         </div>
       </div>

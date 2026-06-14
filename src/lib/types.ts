@@ -4,7 +4,7 @@
 
 export type SourceType = "zoom" | "stream" | "upload";
 
-/** Civic meetings vs. Crash Course Corner educational videos. Drives the
+/** Civic meetings vs. Study Notes educational videos. Drives the
  *  summary prompt + section labels and which dashboard a meeting appears on. */
 export type MeetingKind = "civic" | "course";
 

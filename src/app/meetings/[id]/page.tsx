@@ -120,7 +120,7 @@ export default async function MeetingDetailPage({
   // The detail page's first crumb is the public Library: meetings shown here are
   // published (the only public path in), and admins still get a working trail.
   const crumbHome = meeting.kind === "course"
-    ? { label: "Crash Course Corner", href: "/crash-course" }
+    ? { label: "Study Notes", href: "/study-notes" }
     : { label: "Library", href: "/library" };
 
   // <div>, not <main>: the root layout already renders the <main> landmark.

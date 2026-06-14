@@ -37,9 +37,9 @@ describe("buildSystemPrompt", () => {
     expect(buildSystemPrompt("civic")).toContain("civic meeting summarizer");
   });
 
-  it("course uses the Crash Course study-notes prompt", () => {
+  it("course uses the Study Notes study-notes prompt", () => {
     const p = buildSystemPrompt("course");
-    expect(p).toContain("Crash Course Corner");
+    expect(p).toContain("Study Notes");
     expect(p).toMatch(/study[- ]notes/i);
     expect(p).toContain("KEY CONCEPT");
   });
