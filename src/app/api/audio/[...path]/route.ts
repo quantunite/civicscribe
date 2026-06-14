@@ -72,7 +72,9 @@ export async function GET(
   const baseHeaders: Record<string, string> = {
     "Content-Type": contentType || "application/octet-stream",
     "Accept-Ranges": "bytes",
-    "Cache-Control": "private, max-age=3600",
+    // Audio paths embed the immutable meeting id (meetings/<id>/audio<ext>) and
+    // the bytes never change once stored, so cache aggressively for a day.
+    "Cache-Control": "public, max-age=86400, immutable",
     // Never let the browser MIME-sniff stored bytes into something
     // executable (e.g. a spoofed upload rendered as HTML).
     "X-Content-Type-Options": "nosniff",

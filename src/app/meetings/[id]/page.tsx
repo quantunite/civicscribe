@@ -10,6 +10,8 @@ import { getStore } from "@/lib/store";
 import type { MeetingDetail, MeetingStatus, Utterance } from "@/lib/types";
 import { MeetingView } from "@/components/meeting/MeetingView";
 import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
+import { getConfig } from "@/lib/config";
+import { buildMeetingMetadata } from "@/lib/meetings/metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -76,12 +78,25 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const meeting = await getStore().getMeeting(id);
-  return {
-    title: meeting
-      ? `${meeting.title} · CivicScribe`
-      : "Meeting not found · CivicScribe",
-  };
+  const store = getStore();
+  const meeting = await store.getMeeting(id);
+
+  // Reuse the same published/admin boundary the page enforces so a card never
+  // leaks an unpublished meeting. Only fetch the summary when there is a
+  // meeting (avoids a needless store read on a 404).
+  const cookieStore = await cookies();
+  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
+  const summary =
+    meeting && (meeting.published || isAdmin)
+      ? await store.getSummaryByMeeting(meeting.id)
+      : null;
+
+  return buildMeetingMetadata({
+    meeting,
+    summary,
+    isAdmin,
+    baseUrl: getConfig().baseUrl,
+  });
 }
 
 export default async function MeetingDetailPage({
