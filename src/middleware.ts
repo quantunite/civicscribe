@@ -64,13 +64,13 @@ function hasValidCredential(request: NextRequest, secret: string): boolean {
  *  AND path matter: GET reads of the same paths are public. */
 function isAdminSurface(method: string, pathname: string): boolean {
   // --- gated pages (any method, normally GET navigations) ---
-  // NOTE: /meetings/new and /study-notes/new are deliberately PUBLIC. Generation
-  // is open-with-guardrails (the public submits; an admin later approves to
-  // publish), so the submit forms must stay reachable even when OWNER_SECRET is
-  // set. The mutating POST routes they call (POST /api/meetings, /api/upload)
-  // are also open; only manage/publish actions are gated.
+  // NOTE: /meetings/new, /study-notes/new, and /schedules (+ /schedules/new) are
+  // deliberately PUBLIC. Generation is open-with-guardrails (the public submits
+  // a one-off capture; an admin later approves to publish), so the submit forms
+  // must stay reachable even when OWNER_SECRET is set. The mutating routes they
+  // call (POST /api/meetings, /api/upload, POST /api/schedules one-off) are also
+  // open; only manage/publish/recurring actions are gated.
   const ADMIN_PAGES = [
-    "/schedules",
     "/review", // the moderation queue page
   ];
   for (const page of ADMIN_PAGES) {
@@ -103,12 +103,16 @@ function isAdminSurface(method: string, pathname: string): boolean {
     return true;
   }
 
-  // All POST/PATCH/DELETE on /api/schedules and /api/schedules/[id]
-  // (GET list stays public).
-  if (pathname === "/api/schedules" || pathname.startsWith("/api/schedules/")) {
-    if (method === "POST" || method === "PATCH" || method === "DELETE") {
-      return true;
-    }
+  // /api/schedules: POST PASSES THROUGH (the handler decides one-off-public vs
+  // recurring-admin; recurring is re-checked there via requireAdmin). GET list
+  // is public.
+  if (pathname === "/api/schedules") {
+    return false;
+  }
+  // /api/schedules/[id]: PATCH + DELETE (pause/edit/delete) stay admin-gated.
+  if (pathname.startsWith("/api/schedules/")) {
+    if (method === "PATCH" || method === "DELETE") return true;
+    return false;
   }
 
   return false;
