@@ -55,7 +55,7 @@ export class AssemblyAiTranscriptionProvider implements TranscriptionProvider {
     const key = this.config.assemblyAiApiKey;
     if (!key) {
       throw new Error(
-        "ASSEMBLYAI_API_KEY is not set — add your AssemblyAI API key to the environment " +
+        "ASSEMBLYAI_API_KEY is not set: add your AssemblyAI API key to the environment " +
           "(see README: going live) or run with MOCK_MODE=true."
       );
     }

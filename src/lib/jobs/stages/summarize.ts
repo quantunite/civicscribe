@@ -21,7 +21,7 @@ export async function handleSummarize(
   const transcript = await store.getTranscriptByMeeting(meeting.id);
   if (!transcript) {
     throw new Error(
-      `Meeting ${meeting.id} has no transcript — transcribe must run first`
+      `Meeting ${meeting.id} has no transcript: transcribe must run first`
     );
   }
 

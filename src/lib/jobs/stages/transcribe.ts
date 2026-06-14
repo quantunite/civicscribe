@@ -31,7 +31,7 @@ export async function handleTranscribe(
     const existing = await store.getTranscriptByMeeting(meeting.id);
     if (existing) return;
     throw new Error(
-      `Meeting ${meeting.id} has no audio_storage_path — capture must run first`
+      `Meeting ${meeting.id} has no audio_storage_path: capture must run first`
     );
   }
 

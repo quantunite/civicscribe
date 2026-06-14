@@ -21,7 +21,7 @@ export class MockEmailProvider implements EmailProvider {
       "[MockEmailProvider] Would send completion email",
       `  To:        ${to}`,
       `  Subject:   CivicScribe: "${meeting.title}" is ready`,
-      `  Meeting:   ${meeting.title} — ${meeting.body_name}`,
+      `  Meeting:   ${meeting.title}, ${meeting.body_name}`,
       `  Status:    ${meeting.status}`,
       `  Duration:  ${
         meeting.duration_seconds != null

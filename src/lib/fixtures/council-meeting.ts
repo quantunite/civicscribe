@@ -115,30 +115,30 @@ export const FIXTURE_COUNCIL_SUMMARY: MeetingSummaryContent = {
     "Mayor's office to pass along the Brook Creek Park rain garden compliment to Parks crews.",
   ],
   topics: [
-    "Zoning variance Z-2026-014 — accessory dwelling unit at 847 Vermont Street",
+    "Zoning variance Z-2026-014: accessory dwelling unit at 847 Vermont Street",
     "Alley drainage and stormwater concerns",
-    "Budget amendment 2026-07 — sidewalk repair funding and ADA backlog",
+    "Budget amendment 2026-07: sidewalk repair funding and ADA backlog",
     "Contingency reserve policy and fund balance",
     "Pedestrian safety at 19th and Learnard near Cordley Elementary",
     "Parks maintenance and fall leaf collection scheduling",
   ],
-  full_markdown: `# Lawrence City Council — Regular Session, June 2
+  full_markdown: `# Lawrence City Council, Regular Session, June 2
 
 ## Call to Order and Roll Call
 
 Mayor Whitfield called the regular session to order at 6:32 p.m. City Clerk Boyd called the roll: Councilor Ramos, Councilor Chen, and Mayor Whitfield were present, establishing a quorum. The minutes of the May 19th session were approved unanimously on a motion by Ramos, seconded by Chen.
 
-## Zoning Variance Z-2026-014 — 847 Vermont Street
+## Zoning Variance Z-2026-014: 847 Vermont Street
 
 The council took up a request to reduce the rear setback from twenty-five feet to fifteen feet to allow a detached accessory dwelling unit above a new garage. The Planning Commission had recommended approval 6-1 with five staff conditions, and the clerk confirmed proper notice and two written comments in support.
 
-Councilor Ramos supported the project but pressed for substantive engineering review of the required grading and drainage plan, citing existing ponding in the alley. Councilor Chen framed the application as exactly the kind of infill the city's ADU ordinance was designed to enable, noting the conditions already cover drainage, parking, and owner occupancy. In the public hearing, neighbor Harold Finch spoke in support while echoing the drainage concern, and Marcy Delgado asked that the required off-street parking space be built before occupancy — which, Ramos noted, condition three already guarantees by tying it to the certificate of occupancy.
+Councilor Ramos supported the project but pressed for substantive engineering review of the required grading and drainage plan, citing existing ponding in the alley. Councilor Chen framed the application as exactly the kind of infill the city's ADU ordinance was designed to enable, noting the conditions already cover drainage, parking, and owner occupancy. In the public hearing, neighbor Harold Finch spoke in support while echoing the drainage concern, and Marcy Delgado asked that the required off-street parking space be built before occupancy, which, Ramos noted, condition three already guarantees by tying it to the certificate of occupancy.
 
 The council approved the variance with all five conditions on a 3-0 roll-call vote.
 
-## Budget Amendment 2026-07 — Sidewalk Repairs
+## Budget Amendment 2026-07: Sidewalk Repairs
 
-The council considered transferring $185,000 from the contingency reserve to the Public Works sidewalk repair program after spring freeze-thaw damage roughly doubled flagged trip hazards. Ramos noted the transfer funds about half of the 400-panel backlog, prioritized by ADA hazard scoring, and asked for quarterly progress reports. Chen cautioned that the transfer brings the contingency reserve to roughly 4.2 percent of expenditures — within the 3 percent policy floor, but worth watching before storm season ends. The amendment passed 3-0 with the reporting requirement attached.
+The council considered transferring $185,000 from the contingency reserve to the Public Works sidewalk repair program after spring freeze-thaw damage roughly doubled flagged trip hazards. Ramos noted the transfer funds about half of the 400-panel backlog, prioritized by ADA hazard scoring, and asked for quarterly progress reports. Chen cautioned that the transfer brings the contingency reserve to roughly 4.2 percent of expenditures, within the 3 percent policy floor, but worth watching before storm season ends. The amendment passed 3-0 with the reporting requirement attached.
 
 ## Public Comment
 

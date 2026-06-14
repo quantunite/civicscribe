@@ -77,8 +77,8 @@ export async function generateMetadata({
   const meeting = await getStore().getMeeting(id);
   return {
     title: meeting
-      ? `${meeting.title} — CivicScribe`
-      : "Meeting not found — CivicScribe",
+      ? `${meeting.title} · CivicScribe`
+      : "Meeting not found · CivicScribe",
   };
 }
 

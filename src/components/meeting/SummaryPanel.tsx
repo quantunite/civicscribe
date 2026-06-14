@@ -52,7 +52,7 @@ export function SummaryPanel({
             className="h-3 w-3 shrink-0 animate-pulse rounded-full bg-teal-600"
           />
           <p>
-            {note} This page updates automatically — no need to refresh.
+            {note} This page updates automatically, no need to refresh.
           </p>
         </div>
       );

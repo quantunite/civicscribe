@@ -130,7 +130,7 @@ export default function NewScheduleForm() {
       next.sourceUrl = "Zoom sources must be a zoom.us link.";
     } else if (sourceType === "stream" && isInternalHost(url.hostname)) {
       next.sourceUrl =
-        "Use a public host — localhost and private addresses aren't allowed.";
+        "Use a public host: localhost and private addresses aren't allowed.";
     }
 
     if (!timezone.trim()) {

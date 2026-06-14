@@ -13,7 +13,7 @@ export default async function DashboardPage() {
         <h1 className="text-3xl">Meetings</h1>
         <p className="mt-2 max-w-2xl text-ink-soft">
           Your archive of captured public meetings. Processing meetings update
-          automatically — completed ones open to a full transcript and summary.
+          automatically; completed ones open to a full transcript and summary.
         </p>
       </div>
       <MeetingList initialMeetings={meetings} kind="civic" />

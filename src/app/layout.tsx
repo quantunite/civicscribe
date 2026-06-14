@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     template: "%s · CivicScribe",
   },
   description:
-    "Capture, transcribe, and summarize public meetings — a searchable archive of civic business with speaker-labeled transcripts.",
+    "Capture, transcribe, and summarize public meetings: a searchable archive of civic business with speaker-labeled transcripts.",
 };
 
 export default function RootLayout({
@@ -67,7 +67,7 @@ export default function RootLayout({
         </main>
         <footer className="border-t border-line bg-surface">
           <div className="mx-auto w-full max-w-6xl px-4 py-5 text-sm text-ink-soft sm:px-6">
-            CivicScribe — a personal archive of public meetings, built accessibility-first.
+            CivicScribe: a personal archive of public meetings, built accessibility-first.
           </div>
         </footer>
       </body>

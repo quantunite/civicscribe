@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Crash Course Corner",
   description:
-    "Digest educational videos fast — paste a video, get study notes instead of watching.",
+    "Digest educational videos fast: paste a video, get study notes instead of watching.",
 };
 
 export default async function CrashCoursePage() {

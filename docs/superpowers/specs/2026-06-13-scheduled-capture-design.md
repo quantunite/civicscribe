@@ -1,4 +1,4 @@
-# Scheduled / Recurring Capture — Design
+# Scheduled / Recurring Capture: Design
 
 Date: 2026-06-13
 Status: approved
@@ -25,7 +25,7 @@ The meetings we want to capture expose video inconsistently (stable recurring
 URL, a fresh URL per occurrence, or a channel/playlist). So a schedule stores a
 **source spec** that resolves to a concrete capture URL *at fire time*:
 
-- v1 ships one resolver: `{ type: "fixed_url", url }` — covers stable recurring
+- v1 ships one resolver: `{ type: "fixed_url", url }`, covering stable recurring
   stream URLs and recurring Zoom links.
 - The resolver *interface* leaves room for `{ type: "youtube_channel", ... }` /
   playlist resolvers later (the "new URL per occurrence under a stable channel"
@@ -34,7 +34,7 @@ URL, a fresh URL per occurrence, or a channel/playlist). So a schedule stores a
 This is deliberately YAGNI: we do not build a channel scraper now, but nothing
 walls it off.
 
-## Data model — migration `0004_schedules.sql`
+## Data model: migration `0004_schedules.sql`
 
 New `schedules` table:
 
@@ -76,10 +76,10 @@ Structured cadence, not cron/RRULE:
 
 Covers civic cadences including "2nd Tuesday of the month, 6pm CT", which a plain
 interval can't express. Next-fire computation is DST-correct via **luxon** (pure
-JS — safe on this locked-down Windows/Sophos box; the native-module concern does
+JS, safe on this locked-down Windows/Sophos box; the native-module concern does
 not apply). Rejected `rrule` as more than civic cadences need.
 
-## Scheduler — host-agnostic sweep
+## Scheduler: host-agnostic sweep
 
 New `src/lib/jobs/scheduler.ts`:
 
@@ -90,8 +90,8 @@ sweepSchedules(store, providers, now) -> { fired: ScheduleFireResult[] }
 For each `enabled && next_fire_at <= now`:
 1. Resolve `source_spec` → concrete URL (resolver registry; v1 `fixed_url`).
 2. Compute `occurrence_key` from the fired `next_fire_at` (e.g. ISO of the
-   occurrence instant) — the idempotency key.
-3. **Materialize at fire time:** `createAndEnqueueCapture()` — create the meeting
+   occurrence instant), the idempotency key.
+3. **Materialize at fire time:** `createAndEnqueueCapture()` to create the meeting
    row (with `schedule_id` + `occurrence_key`) and enqueue a `capture` job. This
    reuses the exact create+enqueue path the on-demand API uses (extracted into a
    shared helper from `POST /api/meetings`).
@@ -100,7 +100,7 @@ For each `enabled && next_fire_at <= now`:
 **Why materialize-at-fire-time** (not pre-insert a job with a time gate):
 `claim_next_job()` stays untouched (no `scheduled_for <= now()` gate), and the
 orphan-reaper in `reconcileMeetings` never sees a long-lived "scheduled but
-uncaptured" meeting — so we need **no new `MeetingStatus`**. Upcoming runs live on
+uncaptured" meeting, so we need **no new `MeetingStatus`**. Upcoming runs live on
 the schedule's `next_fire_at`, surfaced on the Schedules page, not as meeting rows.
 
 **Invocation:** the sweep runs on the **same tick** as the job runner. The tick
@@ -168,6 +168,6 @@ meeting was created and `driveToComplete` drives it to `complete`.
   and unit-test it (MemoryStore as oracle).
 - **Hardening:** timing-safe bearer secret on `/api/jobs/tick` (optional when
   unset so dev still boots; worker sends the header); shared-secret bearer on the
-  Recall webhook (interim — it's only an accelerator, no endpoint registered;
+  Recall webhook (interim: it's only an accelerator, no endpoint registered;
   Svix later); true ranged streaming for audio via a `getRange()` storage
   contract (Supabase → signed-URL redirect). New secrets read via `config.ts`.

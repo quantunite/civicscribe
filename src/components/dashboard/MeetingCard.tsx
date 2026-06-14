@@ -111,8 +111,8 @@ export default function MeetingCard({
         href={`/meetings/${meeting.id}`}
         aria-label={
           isComplete
-            ? `${meeting.title} — open transcript and summary`
-            : `${meeting.title} — view status and details`
+            ? `${meeting.title}: open transcript and summary`
+            : `${meeting.title}: view status and details`
         }
         className={`${cardClass} transition-shadow hover:border-accent hover:shadow-md focus-visible:border-accent`}
       >
@@ -123,7 +123,7 @@ export default function MeetingCard({
         {confirming ? (
           <div className="flex items-center gap-1 rounded-lg border border-line-strong bg-surface p-1 shadow-md">
             <span className="px-1 text-sm font-medium text-ink">
-              {error ? "Failed — retry?" : "Delete?"}
+              {error ? "Failed, retry?" : "Delete?"}
             </span>
             <button
               type="button"

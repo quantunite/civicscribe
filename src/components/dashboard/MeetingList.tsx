@@ -65,8 +65,8 @@ export default function MeetingList({
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-ink-soft">
           {isCourse
-            ? "Paste an educational video and CivicScribe fetches the captions and writes you study notes — no watching required."
-            : "Add your first meeting to start building a searchable archive — paste a Zoom link, a public stream URL, or upload a recording."}
+            ? "Paste an educational video and CivicScribe fetches the captions and writes you study notes, no watching required."
+            : "Add your first meeting to start building a searchable archive: paste a Zoom link, a public stream URL, or upload a recording."}
         </p>
         <div className="mt-6 flex flex-col items-center gap-4">
           <Link

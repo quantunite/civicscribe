@@ -61,13 +61,13 @@ export const FIXTURE_PLANNING_SUMMARY: MeetingSummaryContent = {
     "Applicant to maintain rotating outdoor play groups of no more than fifteen children at a time.",
   ],
   topics: [
-    "Conditional use permit CUP-2026-09 — child care center at 2100 Harper Street",
+    "Conditional use permit CUP-2026-09: child care center at 2100 Harper Street",
     "Drop-off and pick-up traffic circulation on Harper Street",
     "Off-street parking adequacy",
     "Play-area noise buffering and screening",
     "Neighborhood reuse of a vacant institutional building",
   ],
-  full_markdown: `# Lawrence Planning Commission — Public Hearing on CUP-2026-09
+  full_markdown: `# Lawrence Planning Commission: Public Hearing on CUP-2026-09
 
 ## Call to Order
 

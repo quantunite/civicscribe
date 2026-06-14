@@ -50,7 +50,7 @@ function runYtDlp(binary: string, args: string[]): Promise<void> {
       if (err.code === "ENOENT") {
         reject(
           new Error(
-            "yt-dlp not found — install it and ensure it is on PATH (see README: going live), " +
+            "yt-dlp not found: install it and ensure it is on PATH (see README: going live), " +
               "or point YTDLP_PATH at the executable."
           )
         );

@@ -231,7 +231,7 @@ export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
 
         {hasTranscript && !diarized && (
           <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
-            From auto-captions — no speaker labels
+            From auto-captions, no speaker labels
           </p>
         )}
 

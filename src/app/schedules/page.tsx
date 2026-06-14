@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Schedules",
   description:
-    "Auto-capture recurring meetings on a cadence — CivicScribe materializes and processes each occurrence for you.",
+    "Auto-capture recurring meetings on a cadence. CivicScribe materializes and processes each occurrence for you.",
 };
 
 export default async function SchedulesPage() {
@@ -22,8 +22,8 @@ export default async function SchedulesPage() {
           <h1 className="text-3xl">Schedules</h1>
           <p className="mt-2 max-w-2xl text-ink-soft">
             Capture a recurring meeting automatically. Each occurrence becomes a
-            meeting that&apos;s captured, transcribed, and summarized — no need
-            to add it by hand every week.
+            meeting that&apos;s captured, transcribed, and summarized, with no
+            need to add it by hand every week.
           </p>
         </div>
         <Link

@@ -57,7 +57,7 @@ describe("caption config", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/config.test.ts`
-Expected: FAIL — `captionFastLane` is undefined on the config object.
+Expected: FAIL, `captionFastLane` is undefined on the config object.
 
 - [ ] **Step 3: Implement**
 
@@ -151,12 +151,12 @@ describe("transcripts.diarized", () => {
 });
 ```
 
-> NOTE: Confirm `MemoryStore`'s constructor signature first by reading `src/lib/store/memory.ts`. If it takes a different shape (e.g. `new MemoryStore(dataDir?)`), adjust `freshStore()` accordingly — match the existing unit tests in `tests/`.
+> NOTE: Confirm `MemoryStore`'s constructor signature first by reading `src/lib/store/memory.ts`. If it takes a different shape (e.g. `new MemoryStore(dataDir?)`), adjust `freshStore()` accordingly to match the existing unit tests in `tests/`.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/transcript-diarized.test.ts`
-Expected: FAIL — `createTranscript` rejects the `diarized` field / `t.diarized` is undefined.
+Expected: FAIL, `createTranscript` rejects the `diarized` field / `t.diarized` is undefined.
 
 - [ ] **Step 3: Implement**
 
@@ -317,7 +317,7 @@ describe("captionResultFromCues", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/captions-parse.test.ts`
-Expected: FAIL — module `@/lib/captions/parse` not found.
+Expected: FAIL, module `@/lib/captions/parse` not found.
 
 - [ ] **Step 3: Implement the parser**
 
@@ -537,7 +537,7 @@ describe("YtDlpStreamIngestProvider.fetchCaptions", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/caption-providers.test.ts`
-Expected: FAIL — `fetchCaptions` not a function / `YtDlpStreamIngestProvider` constructor takes no args.
+Expected: FAIL, `fetchCaptions` not a function / `YtDlpStreamIngestProvider` constructor takes no args.
 
 - [ ] **Step 3: Extend the interface**
 
@@ -547,7 +547,7 @@ In `src/lib/providers/types.ts`, add to `StreamIngestProvider`:
 export interface StreamIngestProvider {
   /** Try to fetch an existing caption track for the URL. Returns a
    *  (non-diarized) transcript on success, or null when no track exists / the
-   *  fast lane is disabled / fetching fails — the caller then falls back to
+   *  fast lane is disabled / fetching fails; the caller then falls back to
    *  extractAudio. MUST NOT throw for the "no captions" case. */
   fetchCaptions(streamUrl: string): Promise<TranscriptionResult | null>;
   /** Extract audio from a public stream/video URL. Returns audio bytes. */
@@ -719,7 +719,7 @@ export class YtDlpStreamIngestProvider implements StreamIngestProvider {
 }
 ```
 
-> IMPLEMENTATION NOTE (resolve during build, cannot be tested locally — yt-dlp absent): the exact mechanism for getting subtitle text to stdout varies by yt-dlp version. The robust approach is to write subs into a temp dir (mirroring `extractAudio`: `--sub-format json3 -o <tmpl> --skip-download`), then `readdir` the temp dir for the first `*.json3`/`*.vtt` file, `readFile` it, parse, and `rm` the temp dir in a `finally`. Prefer that temp-dir approach over `--print-to-file` if uncertain; keep the timeout via `runYtDlpCapture` (or wrap the existing `runYtDlp` with the same `setTimeout`/`child.kill`). Either way: on ANY failure return `null`, and route the parsed cues through `captionResultFromCues`. The behavioral guarantees (disabled → null without spawning; success → non-diarized TranscriptionResult) are what the tests pin; the spawn details are an internal of this method.
+> IMPLEMENTATION NOTE (resolve during build, cannot be tested locally, yt-dlp absent): the exact mechanism for getting subtitle text to stdout varies by yt-dlp version. The robust approach is to write subs into a temp dir (mirroring `extractAudio`: `--sub-format json3 -o <tmpl> --skip-download`), then `readdir` the temp dir for the first `*.json3`/`*.vtt` file, `readFile` it, parse, and `rm` the temp dir in a `finally`. Prefer that temp-dir approach over `--print-to-file` if uncertain; keep the timeout via `runYtDlpCapture` (or wrap the existing `runYtDlp` with the same `setTimeout`/`child.kill`). Either way: on ANY failure return `null`, and route the parsed cues through `captionResultFromCues`. The behavioral guarantees (disabled → null without spawning; success → non-diarized TranscriptionResult) are what the tests pin; the spawn details are an internal of this method.
 
 Update `src/lib/providers/real/index.ts` line 17:
 
@@ -793,12 +793,12 @@ describe("handleTranscribe short-circuit", () => {
 });
 ```
 
-> NOTE: Confirm `LocalFileStorage`'s real export path/constructor from `src/lib/store/`. The existing test suite already constructs a store + file storage for pipeline tests — copy that exact setup.
+> NOTE: Confirm `LocalFileStorage`'s real export path/constructor from `src/lib/store/`. The existing test suite already constructs a store + file storage for pipeline tests; copy that exact setup.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/transcribe-shortcircuit.test.ts`
-Expected: FAIL — `transcribe` IS called (no short-circuit yet), or import error.
+Expected: FAIL, `transcribe` IS called (no short-circuit yet), or import error.
 
 - [ ] **Step 3: Extract the persist helper**
 
@@ -878,12 +878,12 @@ export async function handleTranscribe(
   await store.setMeetingStatus(meeting.id, "transcribing");
 
   // Caption fast lane: the capture stage already produced the transcript and
-  // left no audio to transcribe. Nothing to do — the runner enqueues summarize.
+  // left no audio to transcribe. Nothing to do; the runner enqueues summarize.
   if (!meeting.audio_storage_path) {
     const existing = await store.getTranscriptByMeeting(meeting.id);
     if (existing) return;
     throw new Error(
-      `Meeting ${meeting.id} has no audio_storage_path — capture must run first`
+      `Meeting ${meeting.id} has no audio_storage_path: capture must run first`
     );
   }
 
@@ -918,7 +918,7 @@ git commit -m "Extract persistTranscription helper; short-circuit transcribe for
 
 ---
 
-## Task 6: Capture stage — caption-first stream branch
+## Task 6: Capture stage: caption-first stream branch
 
 **Files:**
 - Modify: `src/lib/jobs/stages/capture.ts` (`captureStream`)
@@ -1007,7 +1007,7 @@ describe("captureStream caption fast lane", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/capture-captions.test.ts`
-Expected: FAIL — `fetchCaptions` not consulted; transcript never created.
+Expected: FAIL, `fetchCaptions` not consulted; transcript never created.
 
 - [ ] **Step 3: Implement the caption-first branch**
 
@@ -1034,7 +1034,7 @@ async function captureStream(
 
   // Fast lane: if the source has an existing caption track, build the
   // transcript from it and skip both the audio download and AssemblyAI.
-  // fetchCaptions never throws for the "no captions" case — a null result
+  // fetchCaptions never throws for the "no captions" case; a null result
   // (no track / disabled / fetch failed) falls through to audio extraction.
   const captions = await providers.streamIngest.fetchCaptions(meeting.source_url);
   if (captions) {
@@ -1115,7 +1115,7 @@ describe("buildUserContent", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/summary-prompt.test.ts`
-Expected: FAIL — `buildUserContent` not exported / non-diarized branch missing.
+Expected: FAIL, `buildUserContent` not exported / non-diarized branch missing.
 
 - [ ] **Step 3: Implement**
 
@@ -1167,7 +1167,7 @@ git commit -m "Summarize caption transcripts without speaker labels"
 
 ---
 
-## Task 8: UI — caption badge + plain transcript rendering
+## Task 8: UI: caption badge + plain transcript rendering
 
 **Files:**
 - Modify: `src/components/meeting/TranscriptList.tsx` (add `diarized` prop)
@@ -1207,7 +1207,7 @@ In `TranscriptListProps` add `diarized: boolean;`. In the row render, branch: wh
               )}
 ```
 
-Guard the now-conditionally-used `color`/`displayName` so lint stays clean — compute them only in the diarized branch, or keep them and reference inside the branch (they already are). If ESLint flags `color`/`displayName` as unused when `!diarized`, move their `const` declarations inside the `diarized` branch.
+Guard the now-conditionally-used `color`/`displayName` so lint stays clean: compute them only in the diarized branch, or keep them and reference inside the branch (they already are). If ESLint flags `color`/`displayName` as unused when `!diarized`, move their `const` declarations inside the `diarized` branch.
 
 - [ ] **Step 2: Pass `diarized` from `MeetingView` and show the badge**
 
@@ -1222,7 +1222,7 @@ Pass it to `<TranscriptList ... diarized={diarized} />`. Under the `<h2 id="tran
 ```tsx
         {hasTranscript && !diarized && (
           <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
-            From auto-captions — no speaker labels
+            From auto-captions, no speaker labels
           </p>
         )}
 ```
@@ -1249,19 +1249,19 @@ git commit -m "UI: caption badge and speaker-less transcript rendering"
 
 - [ ] **Step 1: Write the e2e spec**
 
-Mirror the existing e2e flow (which already drives the worker via `/api/jobs/tick` or the dev worker — reuse whatever the current spec uses). Two cases:
+Mirror the existing e2e flow (which already drives the worker via `/api/jobs/tick` or the dev worker; reuse whatever the current spec uses). Two cases:
 
 ```typescript
 // tests/e2e/caption-fast-lane.spec.ts
 import { test, expect } from "@playwright/test";
 
 // Reuse the existing spec's helpers/setup for creating a stream meeting and
-// driving job ticks. Pseudocode-level — adapt to the real helpers.
+// driving job ticks. Pseudocode-level; adapt to the real helpers.
 
 test("caption fast lane: stream URL with captions summarizes without speakers", async ({ page }) => {
   // create a stream meeting with a normal URL (mock fetchCaptions returns the fixture)
   // drive ticks until status === complete
-  // assert the "From auto-captions — no speaker labels" badge is visible
+  // assert the "From auto-captions, no speaker labels" badge is visible
   // assert no SpeakerName edit controls are present
   // assert a summary rendered
 });
@@ -1294,14 +1294,14 @@ git commit -m "E2E: caption fast lane + audio fallback"
 
 ## Final verification (before declaring done)
 
-- [ ] `npm run typecheck` — clean
-- [ ] `npm run lint` — clean
-- [ ] `npx vitest run` — all unit tests pass (49 existing + new)
-- [ ] `npm run test:e2e` — all e2e pass
-- [ ] `npm run build` — production build succeeds
+- [ ] `npm run typecheck`: clean
+- [ ] `npm run lint`: clean
+- [ ] `npx vitest run`: all unit tests pass (49 existing + new)
+- [ ] `npm run test:e2e`: all e2e pass
+- [ ] `npm run build`: production build succeeds
 - [ ] Manual mock-mode smoke: `npm run seed` + `npm run dev` + `npm run worker`, submit a stream URL, confirm the caption badge and an instant summary; submit a `…nocaptions…` URL, confirm the diarized fallback.
 
 ## Notes / risks carried from the spec
 
-- yt-dlp is NOT installed here; the real `fetchCaptions` spawn path is verified only by typecheck and its disabled-returns-null branch. The temp-dir-vs-stdout detail in Task 4 Step 5 is an internal to finalize when yt-dlp is available — the tests pin behavior, not the spawn mechanism.
+- yt-dlp is NOT installed here; the real `fetchCaptions` spawn path is verified only by typecheck and its disabled-returns-null branch. The temp-dir-vs-stdout detail in Task 4 Step 5 is an internal to finalize when yt-dlp is available; the tests pin behavior, not the spawn mechanism.
 - `CAPTION_FASTLANE=false` is the kill switch if YouTube anti-scraping breaks fetching; auto-fallback means a caption miss never breaks a video that works today.

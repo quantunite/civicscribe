@@ -17,7 +17,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Search — CivicScribe",
+  title: "Search · CivicScribe",
 };
 
 interface MeetingGroup {

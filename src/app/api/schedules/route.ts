@@ -63,7 +63,7 @@ const createScheduleSchema = z
           code: "custom",
           path: ["source_url"],
           message:
-            "source_url must point at a public host — localhost and private/internal addresses are not allowed",
+            "source_url must point at a public host: localhost and private/internal addresses are not allowed",
         });
       }
     }
@@ -71,7 +71,7 @@ const createScheduleSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["recurrence", "timezone"],
-        message: "Unknown timezone — use an IANA name like America/Chicago",
+        message: "Unknown timezone: use an IANA name like America/Chicago",
       });
     }
   });

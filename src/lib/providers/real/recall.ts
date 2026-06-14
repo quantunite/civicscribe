@@ -79,7 +79,7 @@ export class RecallCaptureProvider implements CaptureProvider {
     const key = this.config.recallApiKey;
     if (!key) {
       throw new Error(
-        "RECALL_API_KEY is not set — add your Recall.ai API key to the environment " +
+        "RECALL_API_KEY is not set: add your Recall.ai API key to the environment " +
           "(see README: going live) or run with MOCK_MODE=true."
       );
     }

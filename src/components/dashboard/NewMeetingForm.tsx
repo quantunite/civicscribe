@@ -315,7 +315,7 @@ export default function NewMeetingForm({
             onChange={(e) => setTitle(e.target.value)}
             aria-invalid={errors.title ? true : undefined}
             aria-describedby={errors.title ? "error-title" : undefined}
-            placeholder="City Council Regular Session — June 9"
+            placeholder="City Council Regular Session, June 9"
             className={inputClass}
           />
           {errors.title && (
@@ -435,7 +435,7 @@ export default function NewMeetingForm({
             </p>
           ) : (
             <p id="hint-stream" className="mt-2 text-sm text-ink-soft">
-              Any public page with audio or video — YouTube, a municipal
+              Any public page with audio or video: YouTube, a municipal
               streaming portal, or a direct media link.
             </p>
           )}
@@ -476,7 +476,7 @@ export default function NewMeetingForm({
             </p>
           ) : (
             <p id="hint-upload" className="mt-2 text-sm text-ink-soft">
-              Audio or video — .mp3, .m4a, .wav, .mp4, and similar formats.
+              Audio or video: .mp3, .m4a, .wav, .mp4, and similar formats.
             </p>
           )}
         </div>

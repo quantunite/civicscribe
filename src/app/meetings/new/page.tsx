@@ -4,7 +4,7 @@ import NewMeetingForm from "@/components/dashboard/NewMeetingForm";
 export const metadata: Metadata = {
   title: "Add meeting",
   description:
-    "Add a public meeting to CivicScribe — capture a Zoom meeting, ingest a public stream, or upload a recording.",
+    "Add a public meeting to CivicScribe: capture a Zoom meeting, ingest a public stream, or upload a recording.",
 };
 
 export default function NewMeetingPage() {

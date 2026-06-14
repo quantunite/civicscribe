@@ -7,13 +7,13 @@ import type { Schedule } from "@/lib/types";
 import { describeRecurrence } from "@/lib/schedule/describe";
 
 function formatInstant(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
   // Pinned locale so the date format itself is stable; the time-of-day is still
   // rendered in the runtime's timezone, so the server (UTC) and client (local)
   // differ — the <dd> carries suppressHydrationWarning for that intentional gap.
   return Number.isNaN(d.getTime())
-    ? "—"
+    ? "-"
     : d.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 }
 

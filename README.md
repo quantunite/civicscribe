@@ -1,20 +1,20 @@
 # CivicScribe
 
-Capture, transcribe, and summarize public meetings — built accessibility-first
+Capture, transcribe, and summarize public meetings, built accessibility-first
 for a hard-of-hearing user who can't always attend live.
 
 Submit a meeting three ways:
 
-- **Zoom URL** — a [Recall.ai](https://recall.ai) bot joins and records
-- **Stream URL** — audio extracted with `yt-dlp`
-- **Upload** — drop in an audio/video file
+- **Zoom URL**: a [Recall.ai](https://recall.ai) bot joins and records
+- **Stream URL**: audio extracted with `yt-dlp`
+- **Upload**: drop in an audio/video file
 
 The pipeline transcribes with speaker diarization (AssemblyAI), generates a
 structured summary (Anthropic API), and presents everything in a searchable
 archive: summary panel, virtualized transcript with editable speaker names,
 full-text search, and an audio player that seeks when you click a timestamp.
 
-## 5-minute quickstart (MOCK_MODE — zero API keys)
+## 5-minute quickstart (MOCK_MODE, zero API keys)
 
 Every external service sits behind a provider interface with a mock
 implementation. `MOCK_MODE=true` (already set in `.env.local`) runs the entire
@@ -32,9 +32,9 @@ In a second terminal:
 npm run worker   # polls POST /api/jobs/tick every 5s
 ```
 
-Now open http://localhost:3000 — the seeded meetings are browsable
+Now open http://localhost:3000; the seeded meetings are browsable
 immediately. Add one yourself: **Add meeting → Upload file** (any audio file),
-or paste a Zoom/stream URL — in mock mode every path completes in a few
+or paste a Zoom/stream URL. In mock mode every path completes in a few
 seconds and lands on a full transcript + summary.
 
 ### Verify
@@ -69,15 +69,15 @@ submit (web) ──> meetings + jobs (store) ──> worker tick ──> capture
 
 Set `MOCK_MODE=false` in `.env.local` and fill in keys as you obtain them
 (every variable is documented in `.env.example`). Each provider activates
-independently — you can go live one service at a time.
+independently; you can go live one service at a time.
 
-### Keys at a glance — what each submission path needs
+### Keys at a glance: what each submission path needs
 
 | To go live with… | Required | Why |
 |---|---|---|
-| **Upload file** | `ASSEMBLYAI_API_KEY`, `ANTHROPIC_API_KEY` — plus the three `SUPABASE_*` keys, or skip them to keep the local file store | AssemblyAI turns audio into a diarized transcript; Anthropic writes the summary; Supabase stores meetings + audio in production |
+| **Upload file** | `ASSEMBLYAI_API_KEY`, `ANTHROPIC_API_KEY`, plus the three `SUPABASE_*` keys, or skip them to keep the local file store | AssemblyAI turns audio into a diarized transcript; Anthropic writes the summary; Supabase stores meetings + audio in production |
 | **Stream URL** | everything above, plus `yt-dlp` and `ffmpeg` installed (binaries, not keys) | yt-dlp downloads the stream; ffmpeg extracts the audio track |
-| **Zoom URL** | everything above, plus `RECALL_API_KEY` + `RECALL_REGION` (**signup approval required — request early**) | a Recall.ai bot joins the meeting and records it |
+| **Zoom URL** | everything above, plus `RECALL_API_KEY` + `RECALL_REGION` (**signup approval required: request early**) | a Recall.ai bot joins the meeting and records it |
 | **Completion email** (optional) | `RESEND_API_KEY` + `NOTIFY_EMAIL` | without them, emails are logged to the console |
 
 1. **Supabase** (database + audio storage)
@@ -87,29 +87,29 @@ independently — you can go live one service at a time.
      `supabase/migrations/0001_init.sql` in the SQL editor).
    - Set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
 
-2. **AssemblyAI** (transcription + diarization) — sign up at
+2. **AssemblyAI** (transcription + diarization): sign up at
    [assemblyai.com](https://www.assemblyai.com), copy the API key →
    `ASSEMBLYAI_API_KEY`. Pay-as-you-go; this is the first key to get since
    uploads only need this one (plus Supabase).
 
-3. **Anthropic** (summaries) — create a key at
+3. **Anthropic** (summaries): create a key at
    [platform.claude.com](https://platform.claude.com) → `ANTHROPIC_API_KEY`.
    Model defaults to `claude-sonnet-4-6` (override with `ANTHROPIC_MODEL`).
 
-4. **Recall.ai** (Zoom capture) — **requires signup approval**; request access
+4. **Recall.ai** (Zoom capture): **requires signup approval**; request access
    at [recall.ai](https://recall.ai), then set `RECALL_API_KEY` and
    `RECALL_REGION` (e.g. `us-west-2`). Until approved, Zoom capture will fail
    cleanly; uploads and streams work without it.
 
-5. **yt-dlp** (stream capture) — install the binary and ensure it's on PATH
+5. **yt-dlp** (stream capture): install the binary and ensure it's on PATH
    (`winget install yt-dlp` on Windows, `brew install yt-dlp` on macOS), or
    set `YTDLP_PATH`.
-   - **ffmpeg is required** for audio extraction — `yt-dlp -x` shells out to
+   - **ffmpeg is required** for audio extraction: `yt-dlp -x` shells out to
      it (`winget install ffmpeg` on Windows, `brew install ffmpeg` on macOS).
    - Stream capture works for VOD and already-live streams; scheduled capture
      of future live streams is v2 (see the v2 list below).
 
-6. **Resend** (email, optional) — set `RESEND_API_KEY` and `NOTIFY_EMAIL`.
+6. **Resend** (email, optional): set `RESEND_API_KEY` and `NOTIFY_EMAIL`.
    Without a key, completion emails are logged to the console (dev stub).
 
 **What to test first when going live**: upload a short real audio file (this
@@ -119,7 +119,7 @@ stream URL (adds yt-dlp), and a Zoom meeting last (needs Recall approval).
 
 ### What it costs to run
 
-Usage-based pricing as of June 2026 — check the providers' pricing pages
+Usage-based pricing as of June 2026; check the providers' pricing pages
 before budgeting, these move around.
 
 | Service | Rate | Notes |
@@ -143,12 +143,12 @@ Zoom bot (the Recall hour rate is the difference).
 
 - **Supabase**: free tier to start; its 1 GB storage holds roughly 30 hours of
   compressed meeting audio, after which Pro is $25/month. Defer it by staying
-  on the local file store, or by pruning audio after transcription — the
+  on the local file store, or by pruning audio after transcription; the
   transcript and summary are tiny.
 - **Hosting**: $0 while it runs on your own machine; a small always-on VPS is
   ~$5/month.
 
-The Anthropic line is nearly negligible — a summary costs about a dime per
+The Anthropic line is nearly negligible: a summary costs about a dime per
 meeting. Transcription minutes dominate; Zoom bot hours double the marginal
 cost when used.
 

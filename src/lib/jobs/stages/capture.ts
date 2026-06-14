@@ -63,7 +63,7 @@ export async function handleCapture(
       // Audio was uploaded to storage when the meeting was created.
       if (!meeting.audio_storage_path) {
         throw new Error(
-          `Upload meeting ${meeting.id} has no audio_storage_path — the file was never uploaded`
+          `Upload meeting ${meeting.id} has no audio_storage_path: the file was never uploaded`
         );
       }
       break;

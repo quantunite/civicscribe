@@ -57,8 +57,8 @@ function meetingDate(detail: MeetingDetail): string {
 export function toTxt(detail: MeetingDetail): string {
   const { meeting, utterances } = detail;
   const diarized = isDiarized(detail);
-  const lines: string[] = [meeting.title, `${meeting.body_name} — ${meetingDate(detail)}`];
-  if (!diarized) lines.push("(Transcript from auto-captions — no speaker labels)");
+  const lines: string[] = [meeting.title, `${meeting.body_name} · ${meetingDate(detail)}`];
+  if (!diarized) lines.push("(Transcript from auto-captions, no speaker labels)");
   lines.push("");
   if (utterances.length === 0) {
     lines.push("(No transcript available.)");
@@ -95,7 +95,7 @@ export function toMarkdown(detail: MeetingDetail): string {
   }
 
   out.push("## Transcript", "");
-  if (!diarized) out.push("_From auto-captions — no speaker labels._", "");
+  if (!diarized) out.push("_From auto-captions, no speaker labels._", "");
   if (utterances.length === 0) {
     out.push("_No transcript available._");
   } else {

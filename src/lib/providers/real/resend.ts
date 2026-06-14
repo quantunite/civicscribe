@@ -39,7 +39,7 @@ export class ResendEmailProvider implements EmailProvider {
     summary: Summary | null
   ): Promise<void> {
     const link = this.meetingLink(meeting);
-    const subject = `[CivicScribe] ${meeting.title} — ${meeting.status}`;
+    const subject = `[CivicScribe] ${meeting.title}: ${meeting.status}`;
 
     if (!this.config.resendApiKey) {
       // Dev stub: no key, no send — log instead (spec'd behavior).
@@ -62,7 +62,7 @@ export class ResendEmailProvider implements EmailProvider {
 
     const html = [
       `<h2>${escapeHtml(meeting.title)}</h2>`,
-      `<p><strong>${escapeHtml(meeting.body_name)}</strong> — status: <strong>${escapeHtml(meeting.status)}</strong></p>`,
+      `<p><strong>${escapeHtml(meeting.body_name)}</strong>, status: <strong>${escapeHtml(meeting.status)}</strong></p>`,
       summary?.overview
         ? `<p>${escapeHtml(summary.overview)}</p>`
         : "<p>No summary is available for this meeting.</p>",
