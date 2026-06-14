@@ -218,6 +218,21 @@ export interface TopicMeeting {
   topics: string[];
 }
 
+/** A cached cross-meeting synthesis for one topic slug (Phase 3). Built only
+ *  from PUBLISHED meetings; regenerated when the published set changes. */
+export interface TopicSynthesis {
+  slug: string;
+  topic: string;
+  /** Markdown narrative of how the topic was discussed across the meetings. */
+  content: string;
+  /** Sorted meeting ids the synthesis was built from (cache-invalidation key). */
+  sourceMeetingIds: string[];
+  meetingCount: number;
+  /** Model that produced the synthesis, or null (column is nullable). */
+  model: string | null;
+  generatedAt: string;
+}
+
 /** The structured summary shape returned by the SummaryProvider. */
 export interface MeetingSummaryContent {
   overview: string;

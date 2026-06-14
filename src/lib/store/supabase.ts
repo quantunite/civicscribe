@@ -36,6 +36,7 @@ import {
   type Summary,
   type TopicMeeting,
   type TopicSummary,
+  type TopicSynthesis,
   type Transcript,
   type Utterance,
   type UtteranceSearchResult,
@@ -119,6 +120,16 @@ interface SpeakerAliasRow {
   body_name: string;
   speaker_label_pattern: string;
   display_name: string;
+}
+
+interface TopicSynthesisRow {
+  slug: string;
+  topic: string;
+  content: string;
+  source_meeting_ids: string[] | null;
+  meeting_count: number;
+  model: string | null;
+  generated_at: string;
 }
 
 interface JobRow {
@@ -219,6 +230,20 @@ function mapSummary(row: SummaryRow): Summary {
     action_items: toStringArray(row.action_items),
     topics: toStringArray(row.topics),
     full_markdown: row.full_markdown,
+  };
+}
+
+function mapTopicSynthesis(row: TopicSynthesisRow): TopicSynthesis {
+  return {
+    slug: row.slug,
+    topic: row.topic,
+    content: row.content,
+    sourceMeetingIds: Array.isArray(row.source_meeting_ids)
+      ? row.source_meeting_ids
+      : [],
+    meetingCount: row.meeting_count,
+    model: row.model ?? null,
+    generatedAt: row.generated_at,
   };
 }
 
@@ -724,6 +749,33 @@ export class SupabaseStore implements DataStore {
       if (page.length < PAGE) break;
     }
     return out;
+  }
+
+  async getTopicSynthesis(slug: string): Promise<TopicSynthesis | null> {
+    const { data, error } = await this.client
+      .from("topic_syntheses")
+      .select("*")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (error) fail("getTopicSynthesis", error);
+    return data ? mapTopicSynthesis(data as TopicSynthesisRow) : null;
+  }
+
+  async upsertTopicSynthesis(rec: TopicSynthesis): Promise<void> {
+    // Primary key is slug, so upsert on conflict replaces the cached synthesis.
+    const { error } = await this.client.from("topic_syntheses").upsert(
+      {
+        slug: rec.slug,
+        topic: rec.topic,
+        content: rec.content,
+        source_meeting_ids: rec.sourceMeetingIds,
+        meeting_count: rec.meetingCount,
+        model: rec.model,
+        generated_at: rec.generatedAt,
+      },
+      { onConflict: "slug" }
+    );
+    if (error) fail("upsertTopicSynthesis", error);
   }
 
   // -- speaker aliases ---------------------------------------------------------
