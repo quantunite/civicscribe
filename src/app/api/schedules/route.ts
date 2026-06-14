@@ -3,6 +3,7 @@ import { z } from "zod";
 import { IANAZone } from "luxon";
 
 import { getStore } from "@/lib/store";
+import { requireAdmin } from "@/lib/owner";
 import { firstFireAfter } from "@/lib/schedule/recurrence";
 import { isInternalHost, isZoomHost, parseHttpUrl } from "@/lib/net/url";
 import type { Recurrence } from "@/lib/types";
@@ -89,6 +90,9 @@ export async function GET() {
 
 /** POST /api/schedules — create a recurring capture schedule. */
 export async function POST(request: Request) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
+
   let body: unknown;
   try {
     body = await request.json();

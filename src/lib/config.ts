@@ -26,6 +26,10 @@ export interface AppConfig {
   tickSecret: string | null;
   /** Shared secret (URL token) required for the Recall webhook. Null = open. */
   recallWebhookSecret: string | null;
+  /** The single admin secret (cookie for the UI, Bearer for scripts). Null =
+   *  open mode: the access layer is a complete no-op so dev + the test suite run
+   *  unchanged. Set it to gate the admin surface for a public deploy. */
+  ownerSecret: string | null;
 }
 
 function env(name: string): string | null {
@@ -58,5 +62,6 @@ export function getConfig(): AppConfig {
     captionFetchTimeoutMs: Number(env("CAPTION_FETCH_TIMEOUT_MS") ?? "60000"),
     tickSecret: env("TICK_SECRET"),
     recallWebhookSecret: env("RECALL_WEBHOOK_SECRET"),
+    ownerSecret: env("OWNER_SECRET"),
   };
 }

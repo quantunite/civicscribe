@@ -4,6 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { getFileStorage, getStore } from "@/lib/store";
+import { requireAdmin } from "@/lib/owner";
 import type { MeetingDetail, Utterance } from "@/lib/types";
 
 export async function GET(
@@ -34,9 +35,12 @@ export async function GET(
 // (transcript, utterances, summary, jobs), and its audio blob. Idempotent-ish:
 // a missing meeting returns 404.
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
+  const denied = requireAdmin(req);
+  if (denied) return denied;
+
   const { id } = await params;
   const store = getStore();
 

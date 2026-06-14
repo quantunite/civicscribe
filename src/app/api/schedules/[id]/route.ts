@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getStore } from "@/lib/store";
+import { requireAdmin } from "@/lib/owner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +14,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
+
   const { id } = await params;
   let body: unknown;
   try {
@@ -49,9 +53,12 @@ export async function PATCH(
 /** DELETE /api/schedules/:id — remove a schedule. Already-captured meetings
  *  keep their rows (schedule_id is set null by the FK). */
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
+
   const { id } = await params;
   try {
     await getStore().deleteSchedule(id);

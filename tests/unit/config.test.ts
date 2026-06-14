@@ -3,7 +3,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { getConfig } from "@/lib/config";
 
-const KEYS = ["CAPTION_FASTLANE", "CAPTION_LANGS", "CAPTION_FETCH_TIMEOUT_MS"];
+const KEYS = [
+  "CAPTION_FASTLANE",
+  "CAPTION_LANGS",
+  "CAPTION_FETCH_TIMEOUT_MS",
+  "OWNER_SECRET",
+];
 
 describe("caption config", () => {
   afterEach(() => {
@@ -26,5 +31,26 @@ describe("caption config", () => {
     expect(c.captionFastLane).toBe(false);
     expect(c.captionLangs).toEqual(["es", "fr"]);
     expect(c.captionFetchTimeoutMs).toBe(12000);
+  });
+});
+
+describe("owner secret config", () => {
+  afterEach(() => {
+    delete process.env.OWNER_SECRET;
+  });
+
+  it("ownerSecret is null when OWNER_SECRET is unset (open mode)", () => {
+    delete process.env.OWNER_SECRET;
+    expect(getConfig().ownerSecret).toBeNull();
+  });
+
+  it("ownerSecret is null when OWNER_SECRET is blank/whitespace", () => {
+    process.env.OWNER_SECRET = "   ";
+    expect(getConfig().ownerSecret).toBeNull();
+  });
+
+  it("reads OWNER_SECRET when set", () => {
+    process.env.OWNER_SECRET = "top-secret";
+    expect(getConfig().ownerSecret).toBe("top-secret");
   });
 });
