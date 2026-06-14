@@ -96,6 +96,12 @@ export async function getOrBuildTopicSynthesis(
       })
     );
 
+    // The synthesis describes how the discussion evolved over time, and the
+    // prompt presents these "oldest reference first", so feed them chronologically
+    // (getTopicMeetings returns newest-first for display; ISO timestamps sort
+    // lexicographically == chronologically).
+    inputMeetings.sort((a, b) => a.date.localeCompare(b.date));
+
     const content = await providers.summary.synthesizeTopic({
       topic,
       meetings: inputMeetings,
