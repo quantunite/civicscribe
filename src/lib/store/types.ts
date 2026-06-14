@@ -40,6 +40,20 @@ export interface DataStore {
   ): Promise<Meeting | null>;
   /** Newest first. Optionally restrict to a single kind (civic vs course). */
   listMeetings(kind?: MeetingKind): Promise<Meeting[]>;
+  /** The public library feed: published meetings only, newest first, optionally
+   *  restricted to a single kind. */
+  listLibrary(opts?: { kind?: MeetingKind }): Promise<Meeting[]>;
+  /** The admin moderation queue: unpublished meetings that have not failed,
+   *  newest first. */
+  listPendingReview(): Promise<Meeting[]>;
+  /** Find a meeting by its normalized source_key (dedup). Newest match wins.
+   *  Returns null for a null/empty key or when nothing matches. */
+  findBySourceKey(sourceKey: string | null): Promise<Meeting | null>;
+  /** Approve a meeting into the public library (sets published + published_at).
+   *  Idempotent: re-publishing keeps the original published_at. */
+  publishMeeting(id: string): Promise<Meeting>;
+  /** Remove a meeting from the public library (clears published + published_at). */
+  unpublishMeeting(id: string): Promise<Meeting>;
   updateMeeting(
     id: string,
     patch: Partial<

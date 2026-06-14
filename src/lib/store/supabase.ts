@@ -40,6 +40,7 @@ import {
 } from "@/lib/types";
 import type { DataStore, FileStorage } from "@/lib/store/types";
 import { orderSearchResults } from "@/lib/store/search-order";
+import { sourceKey } from "@/lib/net/source-key";
 
 // ---------------------------------------------------------------------------
 // Local row types (no generated Supabase types available). Enum-ish columns
@@ -60,6 +61,10 @@ interface MeetingRow {
   duration_seconds: number | null;
   schedule_id: string | null;
   occurrence_key: string | null;
+  published: boolean;
+  published_at: string | null;
+  tenant_id: string | null;
+  source_key: string | null;
   created_at: string;
 }
 
@@ -155,6 +160,10 @@ function mapMeeting(row: MeetingRow): Meeting {
     duration_seconds: row.duration_seconds,
     schedule_id: row.schedule_id ?? null,
     occurrence_key: row.occurrence_key ?? null,
+    published: row.published ?? false,
+    published_at: row.published_at ?? null,
+    tenant_id: row.tenant_id ?? null,
+    source_key: row.source_key ?? null,
     created_at: row.created_at,
   };
 }
@@ -278,6 +287,15 @@ export class SupabaseStore implements DataStore {
         audio_storage_path: input.audio_storage_path ?? null,
         schedule_id: input.schedule_id ?? null,
         occurrence_key: input.occurrence_key ?? null,
+        // published / published_at / tenant_id keep their column defaults
+        // (false / null / null) unless an admin promotes the row later.
+        published: input.published ?? false,
+        tenant_id: input.tenant_id ?? null,
+        // Compute the dedup key from source_url unless one was passed explicitly.
+        source_key:
+          input.source_key !== undefined
+            ? input.source_key
+            : sourceKey(input.source_url),
       })
       .select()
       .single();
@@ -318,6 +336,73 @@ export class SupabaseStore implements DataStore {
     const { data, error } = await query;
     if (error) fail("listMeetings", error);
     return ((data ?? []) as MeetingRow[]).map(mapMeeting);
+  }
+
+  async listLibrary(opts?: { kind?: MeetingKind }): Promise<Meeting[]> {
+    let query = this.client
+      .from("meetings")
+      .select("*")
+      .eq("published", true)
+      .order("created_at", { ascending: false });
+    if (opts?.kind) query = query.eq("kind", opts.kind);
+    const { data, error } = await query;
+    if (error) fail("listLibrary", error);
+    return ((data ?? []) as MeetingRow[]).map(mapMeeting);
+  }
+
+  async listPendingReview(): Promise<Meeting[]> {
+    const { data, error } = await this.client
+      .from("meetings")
+      .select("*")
+      .eq("published", false)
+      .neq("status", "failed")
+      .order("created_at", { ascending: false });
+    if (error) fail("listPendingReview", error);
+    return ((data ?? []) as MeetingRow[]).map(mapMeeting);
+  }
+
+  async findBySourceKey(key: string | null): Promise<Meeting | null> {
+    if (!key) return null;
+    const { data, error } = await this.client
+      .from("meetings")
+      .select("*")
+      .eq("source_key", key)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) fail("findBySourceKey", error);
+    return data ? mapMeeting(data as MeetingRow) : null;
+  }
+
+  async publishMeeting(id: string): Promise<Meeting> {
+    // Idempotent: keep the original published_at on a re-publish. Read first so
+    // an already-published row is returned unchanged.
+    const existing = await this.getMeeting(id);
+    if (!existing) throw new Error(`Meeting not found: ${id}`);
+    if (existing.published) return existing;
+
+    const { data, error } = await this.client
+      .from("meetings")
+      .update({ published: true, published_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) fail("publishMeeting", error);
+    return mapMeeting(data as MeetingRow);
+  }
+
+  async unpublishMeeting(id: string): Promise<Meeting> {
+    const existing = await this.getMeeting(id);
+    if (!existing) throw new Error(`Meeting not found: ${id}`);
+
+    const { data, error } = await this.client
+      .from("meetings")
+      .update({ published: false, published_at: null })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) fail("unpublishMeeting", error);
+    return mapMeeting(data as MeetingRow);
   }
 
   async updateMeeting(
