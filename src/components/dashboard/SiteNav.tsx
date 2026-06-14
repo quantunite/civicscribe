@@ -10,13 +10,13 @@ const PUBLIC_LINKS = [
   { href: "/", label: "Meetings" },
   { href: "/library", label: "Library" },
   { href: "/topics", label: "Topics" },
+  { href: "/schedules", label: "Schedules" },
   { href: "/study-notes", label: "Study Notes" },
   { href: "/search", label: "Search" },
 ] as const;
 
-// Admin-only links (Schedules + the moderation queue are admin-gated routes).
+// Admin-only links (only the moderation queue is admin-gated).
 const ADMIN_LINKS = [
-  { href: "/schedules", label: "Schedules" },
   { href: "/review", label: "Review" },
 ] as const;
 
@@ -25,8 +25,8 @@ function isActive(pathname: string, href: string): boolean {
 }
 
 /** Primary site navigation. Inline on desktop; collapses to a disclosure menu
- *  on mobile so the links + CTA never overflow a narrow viewport. The Review +
- *  Schedules links and the sign-out control render only for the admin. */
+ *  on mobile so the links + CTA never overflow a narrow viewport. The Review
+ *  link and the sign-out control render only for the admin. */
 export default function SiteNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
