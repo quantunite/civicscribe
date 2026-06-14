@@ -360,10 +360,10 @@ test("crash course corner: a course video gets study-labeled study notes", async
 
   await driveToComplete(request, meetingId);
 
-  // Shows in the Crash Course Corner...
-  await page.goto("/crash-course");
+  // Shows in Study Notes...
+  await page.goto("/study-notes");
   await expect(
-    page.getByRole("heading", { level: 1, name: "Crash Course Corner" })
+    page.getByRole("heading", { level: 1, name: "Study Notes" })
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
 
@@ -371,10 +371,10 @@ test("crash course corner: a course video gets study-labeled study notes", async
   await page.goto("/");
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
 
-  // Detail page: Crash Course tag + study-oriented summary section labels.
+  // Detail page: Study Notes tag + study-oriented summary section labels.
   await page.goto(`/meetings/${meetingId}`);
   await expect(page.getByText("Complete", { exact: true })).toBeVisible();
-  await expect(page.getByText("Crash Course", { exact: true })).toBeVisible();
+  await expect(page.getByText("Study Notes", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Key concepts" })
   ).toBeVisible();

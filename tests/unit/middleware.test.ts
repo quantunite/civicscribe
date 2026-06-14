@@ -177,15 +177,15 @@ describe("middleware — public surface stays open even when set", () => {
     expect(isPassThrough(middleware(mk("/")))).toBe(true);
     expect(isPassThrough(middleware(mk("/meetings/abc")))).toBe(true);
     expect(isPassThrough(middleware(mk("/search")))).toBe(true);
-    expect(isPassThrough(middleware(mk("/crash-course")))).toBe(true);
+    expect(isPassThrough(middleware(mk("/study-notes")))).toBe(true);
   });
 
   it("leaves the public submit forms open (generation is open-with-guardrails)", () => {
     process.env.OWNER_SECRET = SECRET;
-    // /meetings/new and /crash-course/new are PUBLIC: the public submits and an
+    // /meetings/new and /study-notes/new are PUBLIC: the public submits and an
     // admin approves later, so the forms stay reachable even when the secret is set.
     expect(isPassThrough(middleware(mk("/meetings/new")))).toBe(true);
-    expect(isPassThrough(middleware(mk("/crash-course/new")))).toBe(true);
+    expect(isPassThrough(middleware(mk("/study-notes/new")))).toBe(true);
   });
 
   it("keeps /schedules and /review gated (redirect to /owner-login)", () => {

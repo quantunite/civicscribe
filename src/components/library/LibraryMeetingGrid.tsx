@@ -32,7 +32,7 @@ export function LibraryMeetingGrid({ meetings }: { meetings: Meeting[] }) {
                 <h2 className="text-xl leading-snug">{meeting.title}</h2>
                 {meeting.kind === "course" && (
                   <span className="inline-flex items-center rounded-full border border-indigo-300 bg-indigo-50 px-3 py-0.5 text-sm font-semibold text-indigo-800">
-                    Crash Course
+                    Study Notes
                   </span>
                 )}
                 {meeting.kind !== "course" && (

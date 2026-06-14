@@ -102,7 +102,7 @@ export default function ScheduleList({ initial }: { initial: Schedule[] }) {
                   </span>
                   {s.kind === "course" && (
                     <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-900">
-                      Crash Course
+                      Study Notes
                     </span>
                   )}
                 </div>
