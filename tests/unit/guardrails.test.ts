@@ -33,24 +33,65 @@ function req(headers: Record<string, string> = {}): Request {
 }
 
 describe("clientIp", () => {
-  it("takes the first hop of x-forwarded-for", () => {
+  it("takes the rightmost public hop of x-forwarded-for (edge-appended client IP)", () => {
+    // The real client IP is the last hop our own edge appends. A single
+    // private hop (e.g. an internal LB) is skipped.
     expect(clientIp(req({ "x-forwarded-for": "203.0.113.7, 10.0.0.1" }))).toBe(
       "203.0.113.7"
     );
   });
 
-  it("trims whitespace around the first hop", () => {
-    expect(clientIp(req({ "x-forwarded-for": "  203.0.113.7 , 10.0.0.1" }))).toBe(
-      "203.0.113.7"
+  it("trims whitespace around the chosen hop", () => {
+    expect(
+      clientIp(req({ "x-forwarded-for": "  203.0.113.7 , 10.0.0.1 " }))
+    ).toBe("203.0.113.7");
+  });
+
+  it("ignores a forged leftmost hop and buckets on the real edge-appended IP", () => {
+    // An abuser sends a random public value as the leftmost hop trying to mint
+    // a fresh per-IP budget; the edge appends the real client IP on the right.
+    // We must bucket on the real (rightmost public) IP, NOT the forged one.
+    const forgedA = clientIp(
+      req({ "x-forwarded-for": "1.2.3.4, 203.0.113.7" })
     );
+    const forgedB = clientIp(
+      req({ "x-forwarded-for": "9.9.9.9, 203.0.113.7" })
+    );
+    expect(forgedA).toBe("203.0.113.7");
+    expect(forgedB).toBe("203.0.113.7");
+    // Rotating the forged leftmost value does NOT change the bucket.
+    expect(forgedA).toBe(forgedB);
+  });
+
+  it("skips trailing private hops to reach the public client IP", () => {
+    expect(
+      clientIp(
+        req({ "x-forwarded-for": "203.0.113.7, 10.0.0.1, 192.168.1.1" })
+      )
+    ).toBe("203.0.113.7");
+  });
+
+  it("falls back to x-real-ip rather than trusting the leftmost hop when every XFF hop is internal", () => {
+    expect(
+      clientIp(
+        req({
+          "x-forwarded-for": "10.0.0.1, 192.168.1.1",
+          "x-real-ip": "198.51.100.4",
+        })
+      )
+    ).toBe("198.51.100.4");
   });
 
   it("falls back to x-real-ip when x-forwarded-for is absent", () => {
     expect(clientIp(req({ "x-real-ip": "198.51.100.4" }))).toBe("198.51.100.4");
   });
 
-  it("falls back to a sentinel when no IP header is present", () => {
+  it("falls back to a sentinel when no usable IP is present", () => {
     expect(clientIp(req())).toBe("unknown");
+    // All-internal XFF and no x-real-ip: sentinel, not the spoofable leftmost.
+    expect(clientIp(req({ "x-forwarded-for": "10.0.0.1, 10.0.0.2" }))).toBe(
+      "unknown"
+    );
   });
 });
 

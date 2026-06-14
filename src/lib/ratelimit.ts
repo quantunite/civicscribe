@@ -14,8 +14,23 @@
 //   - RESETS ON REDEPLOY / RESTART. The Map is in memory only; a restart wipes
 //     every counter. That is acceptable for an abuse guardrail (it fails open,
 //     not closed) but means the daily cap is best-effort, not a hard ledger.
-//   - A durable, DB-backed limiter (survives restarts, shared across replicas)
-//     is the follow-up when this moves beyond a single replica.
+//   - THE GLOBAL DAILY SPEND BRAKE (guardrails.ts GLOBAL_RATE_KEY) lives in
+//     this SAME in-memory store, so it inherits the reset-on-restart behavior:
+//     a Railway redeploy, a crash/auto-restart (restartPolicyMaxRetries), or a
+//     routine push resets the global submission count to 0 mid-day. Once per-IP
+//     is bypassed it is the only backstop, and as implemented it is BEST-EFFORT,
+//     NOT a hard ceiling on daily spend. Operational consequence: set
+//     MAX_SUBMITS_GLOBAL_PER_DAY conservatively (each submission can be a paid
+//     AssemblyAI + Anthropic job) and do not rely on it as a billing guarantee.
+//   - It also counts SUBMISSIONS, not estimated dollars; spend.ts computes the
+//     per-job USD estimate but nothing aggregates it against a dollar cap yet.
+//   - FOLLOW-UP (required before this is a true money guarantee): back at least
+//     the global counter with a durable store (the existing Supabase DB) keyed
+//     by UTC day so it survives restarts, and/or cap on estimated USD rather
+//     than a raw submission count. The in-memory per-IP limiter is acceptable
+//     as best-effort; the global money brake should become durable. Not done
+//     here because it needs a migration + store methods that cannot be verified
+//     locally against the real DB on this go-live branch.
 
 export interface RateLimitResult {
   /** True when this call was within the limit (and has been counted). */

@@ -15,6 +15,7 @@
 import { NextResponse } from "next/server";
 
 import { getConfig } from "@/lib/config";
+import { isInternalHost } from "@/lib/net/url";
 import { isAdminRequest } from "@/lib/owner";
 import { checkAndConsume } from "@/lib/ratelimit";
 import { log } from "@/lib/logger";
@@ -23,15 +24,41 @@ import { log } from "@/lib/logger";
 export const GLOBAL_RATE_KEY = "global:submits";
 
 /**
- * Best-effort client IP. Railway puts the real client first in
- * x-forwarded-for; we take that first hop, then fall back to x-real-ip, then a
- * sentinel so a missing header buckets together rather than throwing.
+ * Best-effort client IP for per-IP rate-limit bucketing.
+ *
+ * SECURITY: x-forwarded-for is a list the proxies PREPEND/APPEND to, and the
+ * LEFTMOST hop is whatever the client itself sent. A client can forge
+ * `X-Forwarded-For: <random>` and the platform edge forwards it, so the
+ * leftmost value is attacker-controlled and trusting it lets an abuser mint a
+ * fresh per-IP budget on every request (the per-IP cap is then a no-op). The
+ * trustworthy value is the RIGHTMOST hop appended by our own infrastructure:
+ * the platform edge (Railway) appends the real connecting IP last.
+ *
+ * We therefore walk the XFF chain from the RIGHT and return the last hop that
+ * is not a private/internal proxy address (reusing the SSRF host classifier),
+ * which is the closest-to-edge public client IP we can attribute. If every hop
+ * is internal (or XFF is absent) we fall back to x-real-ip, then to a sentinel
+ * so a missing header buckets together rather than throwing.
+ *
+ * Trusted-proxy assumption: this treats the edge as appending the real client
+ * IP on the right and assumes intermediate hops we add are private/internal.
+ * It is NOT a defense against an attacker who can inject a public IP as the
+ * rightmost hop (only possible if something upstream of our edge is trusted),
+ * which is out of scope for the single-edge Railway deployment.
  */
 export function clientIp(request: Request): string {
   const fwd = request.headers.get("x-forwarded-for");
   if (fwd) {
-    const first = fwd.split(",")[0]?.trim();
-    if (first) return first;
+    const hops = fwd
+      .split(",")
+      .map((h) => h.trim())
+      .filter((h) => h.length > 0);
+    // Walk from the right (edge-appended) and take the last public hop.
+    for (let i = hops.length - 1; i >= 0; i--) {
+      if (!isInternalHost(hops[i])) return hops[i];
+    }
+    // All hops are private/internal: fall through to x-real-ip / sentinel
+    // rather than trust the spoofable leftmost value.
   }
   const real = request.headers.get("x-real-ip");
   if (real && real.trim()) return real.trim();
