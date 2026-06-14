@@ -24,6 +24,7 @@ import type {
   Summary,
   TopicMeeting,
   TopicSummary,
+  TopicSynthesis,
   Transcript,
   Utterance,
   UtteranceSearchResult,
@@ -129,6 +130,12 @@ export interface DataStore {
    *  first, each carrying the summary fields a card needs. Returns [] for an
    *  empty/unknown slug. Unpublished meetings are never returned. */
   getTopicMeetings(slug: string): Promise<TopicMeeting[]>;
+  /** The cached cross-meeting synthesis for a topic slug, or null if none has
+   *  been generated. Read-only and cheap: callers gate generation themselves so
+   *  a public read never spends on an LLM call. */
+  getTopicSynthesis(slug: string): Promise<TopicSynthesis | null>;
+  /** Insert or replace the cached synthesis for a slug (primary key = slug). */
+  upsertTopicSynthesis(rec: TopicSynthesis): Promise<void>;
 
   // -- speaker aliases ---------------------------------------------------------
   upsertSpeakerAlias(input: {

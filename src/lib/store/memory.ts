@@ -35,6 +35,7 @@ import {
   type Summary,
   type TopicMeeting,
   type TopicSummary,
+  type TopicSynthesis,
   type Transcript,
   type Utterance,
   type UtteranceSearchResult,
@@ -55,6 +56,7 @@ interface DbShape {
   speaker_aliases: SpeakerAlias[];
   jobs: Job[];
   schedules: Schedule[];
+  topic_syntheses: TopicSynthesis[];
 }
 
 function emptyDb(): DbShape {
@@ -66,6 +68,7 @@ function emptyDb(): DbShape {
     speaker_aliases: [],
     jobs: [],
     schedules: [],
+    topic_syntheses: [],
   };
 }
 
@@ -151,6 +154,7 @@ export class MemoryStore implements DataStore {
         speaker_aliases: asArray<SpeakerAlias>(rec.speaker_aliases),
         jobs: asArray<Job>(rec.jobs),
         schedules: asArray<Schedule>(rec.schedules),
+        topic_syntheses: asArray<TopicSynthesis>(rec.topic_syntheses),
       };
     } catch {
       // Missing or corrupt file: start empty.
@@ -599,6 +603,25 @@ export class MemoryStore implements DataStore {
           topics: summary.topics,
         });
       });
+    });
+  }
+
+  getTopicSynthesis(slug: string): Promise<TopicSynthesis | null> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const row = db.topic_syntheses.find((s) => s.slug === slug);
+      return row ? clone(row) : null;
+    });
+  }
+
+  upsertTopicSynthesis(rec: TopicSynthesis): Promise<void> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      // Primary key is slug: replace any existing row so a regenerate never
+      // leaves a stale duplicate behind.
+      db.topic_syntheses = db.topic_syntheses.filter((s) => s.slug !== rec.slug);
+      db.topic_syntheses.push(clone(rec));
+      await this.persist();
     });
   }
 

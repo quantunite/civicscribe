@@ -8,7 +8,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
 import type { AppConfig } from "@/lib/config";
-import type { SummaryInput, SummaryProvider } from "@/lib/providers/types";
+import type {
+  SummaryInput,
+  SummaryProvider,
+  TopicSynthesisInput,
+} from "@/lib/providers/types";
 import type { MeetingKind, MeetingSummaryContent } from "@/lib/types";
 import { log } from "@/lib/logger";
 import { estimateAnthropicUsd } from "@/lib/spend";
@@ -154,6 +158,41 @@ export function buildUserContent(input: SummaryInput): string {
   ].join("\n");
 }
 
+// Phase 3 cross-meeting synthesis. Plain Markdown output (no JSON schema), built
+// only from the published meeting summaries handed in. Grounded-only, no em dash.
+const SYNTHESIS_SYSTEM_PROMPT = `You are a civic-knowledge synthesist for CivicScribe. You are given several PUBLISHED meeting summaries that all touch one topic. Write a single Markdown synthesis of what was discussed about that topic ACROSS these meetings, for a resident who wants the throughline without reading every meeting.
+
+Cover, using Markdown headings:
+- The throughline: what this topic is about across the meetings.
+- How the discussion evolved over time (reference meetings by title and date).
+- Points of agreement and points of tension.
+- Open questions and what remains unresolved.
+
+Rules: stay grounded only in the material provided. Do not invent decisions, names, votes, or dates. Reference meetings inline by their title and date. Write plainly. Do not use the long dash character; use commas, colons, or parentheses instead.`;
+
+/** Serialize the synthesis input into a single user-message string (exported so
+ *  it can be unit-tested without the SDK). Each meeting becomes a small section. */
+export function buildSynthesisUserContent(input: TopicSynthesisInput): string {
+  const parts: string[] = [
+    `Topic: ${input.topic}`,
+    "",
+    `You are given ${input.meetings.length} published meetings that touch this topic, oldest reference first.`,
+    "",
+  ];
+  for (const m of input.meetings) {
+    parts.push(`### ${m.title} (${m.date})`);
+    parts.push(`Overview: ${m.overview}`);
+    if (m.keyPoints.length > 0) {
+      parts.push("Key points:");
+      for (const point of m.keyPoints) parts.push(`- ${point}`);
+    } else {
+      parts.push("Key points: none recorded.");
+    }
+    parts.push("");
+  }
+  return parts.join("\n").trimEnd();
+}
+
 export class AnthropicSummaryProvider implements SummaryProvider {
   private client: Anthropic | null = null;
 
@@ -243,5 +282,41 @@ export class AnthropicSummaryProvider implements SummaryProvider {
     throw new Error(
       `Anthropic summary failed after retry: ${lastParseError?.message ?? "unknown parse failure"}`
     );
+  }
+
+  async synthesizeTopic(input: TopicSynthesisInput): Promise<string> {
+    const client = this.getClient();
+
+    // Plain Markdown output, so no output_config.format (no JSON parsing/retry).
+    // API/network errors propagate (the SDK already retries transient ones).
+    const response = await client.messages.create({
+      model: this.config.anthropicModel,
+      max_tokens: MAX_TOKENS,
+      system: SYNTHESIS_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: buildSynthesisUserContent(input) }],
+    });
+
+    const textBlock = response.content.find(
+      (block): block is Anthropic.TextBlock => block.type === "text"
+    );
+    if (!textBlock) {
+      throw new Error(
+        `Anthropic synthesis response contained no text block (stop_reason: ${response.stop_reason ?? "unknown"}).`
+      );
+    }
+
+    // Per-call spend logging (observability only), matching summarize().
+    const inputTokens = response.usage?.input_tokens ?? 0;
+    const outputTokens = response.usage?.output_tokens ?? 0;
+    log.info("anthropic: synthesis spend", {
+      model: this.config.anthropicModel,
+      inputTokens,
+      outputTokens,
+      estimatedUsd: Number(
+        estimateAnthropicUsd(inputTokens, outputTokens).toFixed(4)
+      ),
+    });
+
+    return textBlock.text.trim();
   }
 }
