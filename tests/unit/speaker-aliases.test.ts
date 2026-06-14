@@ -212,7 +212,7 @@ function stubProviders(result: TranscriptionResult): Providers {
         return result;
       },
     },
-    summary: { summarize: unused },
+    summary: { summarize: unused, synthesizeTopic: unused },
     email: { sendCompletionEmail: unused },
   };
 }

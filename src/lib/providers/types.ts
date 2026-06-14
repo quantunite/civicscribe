@@ -86,8 +86,26 @@ export interface SummaryInput {
   utterances: Array<{ speaker: string; text: string }>;
 }
 
+/** Input to a cross-meeting topic synthesis (Phase 3). The meetings are
+ *  PUBLISHED-only and carry just the fields the synthesis is grounded in. */
+export interface TopicSynthesisInput {
+  topic: string;
+  meetings: Array<{
+    title: string;
+    /** ISO instant (the meeting's created_at) used as the date reference. */
+    date: string;
+    overview: string;
+    /** The summary's key_decisions for this meeting. */
+    keyPoints: string[];
+  }>;
+}
+
 export interface SummaryProvider {
   summarize(input: SummaryInput): Promise<MeetingSummaryContent>;
+  /** Cross-meeting synthesis: a Markdown narrative of how `topic` was discussed
+   *  across the given PUBLISHED meetings. Grounded only in the provided
+   *  material. Returns the markdown string (not JSON). */
+  synthesizeTopic(input: TopicSynthesisInput): Promise<string>;
 }
 
 // ---------------------------------------------------------------------------
