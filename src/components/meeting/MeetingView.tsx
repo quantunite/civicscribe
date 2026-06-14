@@ -286,6 +286,8 @@ export function MeetingView({
               diarized={diarized}
               onSeek={handleSeek}
               onRename={isAdmin ? handleRename : undefined}
+              meetingId={detail.meeting.id}
+              canCite={detail.meeting.published || isAdmin}
             />
           </>
         )}

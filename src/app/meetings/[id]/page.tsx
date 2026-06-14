@@ -3,12 +3,12 @@
 // while the processing pipeline runs.
 
 import type { Metadata } from "next";
-import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getStore } from "@/lib/store";
 import type { MeetingDetail, MeetingStatus, Utterance } from "@/lib/types";
 import { MeetingView } from "@/components/meeting/MeetingView";
+import { Breadcrumbs } from "@/components/nav/Breadcrumbs";
 import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
 import { getConfig } from "@/lib/config";
 import { buildMeetingMetadata } from "@/lib/meetings/metadata";
@@ -117,17 +117,16 @@ export default async function MeetingDetailPage({
   // that it exists. Admins see the full detail.
   if (!meeting.published && !isAdmin) notFound();
 
+  // The detail page's first crumb is the public Library: meetings shown here are
+  // published (the only public path in), and admins still get a working trail.
+  const crumbHome = meeting.kind === "course"
+    ? { label: "Crash Course Corner", href: "/crash-course" }
+    : { label: "Library", href: "/library" };
+
   // <div>, not <main>: the root layout already renders the <main> landmark.
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
-      <nav aria-label="Breadcrumb">
-        <Link
-          href="/"
-          className="rounded text-lg font-medium text-teal-800 underline decoration-teal-300 underline-offset-4 hover:text-teal-950 hover:decoration-teal-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
-        >
-          ← All meetings
-        </Link>
-      </nav>
+      <Breadcrumbs items={[crumbHome, { label: meeting.title }]} />
 
       <header className="mt-5">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

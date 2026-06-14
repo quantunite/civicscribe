@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { Utterance } from "@/lib/types";
 import { SpeakerName } from "@/components/meeting/SpeakerName";
+import { CopyLinkButton } from "@/components/meeting/CopyLinkButton";
 import {
   formatTimestamp,
   HighlightedText,
@@ -28,6 +29,12 @@ interface TranscriptListProps {
   /** Persists a renamed speaker. Omit to render speaker names read-only
    *  (public/non-admin view). */
   onRename?: (utteranceId: string, name: string) => Promise<void>;
+  /** The meeting id, threaded so each utterance can offer a citation deep link. */
+  meetingId: string;
+  /** Show the per-utterance "copy link" citation control. Citations are only
+   *  offered for published meetings (the public detail page 404s unpublished for
+   *  non-admins, so a reachable public page is always published). */
+  canCite?: boolean;
 }
 
 export function TranscriptList({
@@ -36,6 +43,8 @@ export function TranscriptList({
   diarized,
   onSeek,
   onRename,
+  meetingId,
+  canCite = false,
 }: TranscriptListProps) {
   const parentRef = useRef<HTMLDivElement | null>(null);
   const [flashId, setFlashId] = useState<string | null>(null);
@@ -143,12 +152,31 @@ export function TranscriptList({
                     color={speakerColor(utterance.speaker_label)}
                     onRename={onRename}
                   />
+                  {canCite && (
+                    <CopyLinkButton
+                      meetingId={meetingId}
+                      utteranceId={utterance.id}
+                      label={`${speakerDisplayName(
+                        utterance.speaker_name,
+                        utterance.speaker_label
+                      )} at ${formatTimestamp(utterance.start_ms)}`}
+                    />
+                  )}
                 </div>
               ) : (
-                <div className="px-4 pt-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-3">
                   <span className="font-mono text-base font-medium tabular-nums text-slate-500">
                     {formatTimestamp(utterance.start_ms)}
                   </span>
+                  {canCite && (
+                    <CopyLinkButton
+                      meetingId={meetingId}
+                      utteranceId={utterance.id}
+                      label={`utterance at ${formatTimestamp(
+                        utterance.start_ms
+                      )}`}
+                    />
+                  )}
                 </div>
               )}
               <p className="px-4 pb-4 pt-1.5 text-lg leading-[1.7] text-slate-900">

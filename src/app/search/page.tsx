@@ -7,6 +7,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { getStore } from "@/lib/store";
 import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
+import { Breadcrumbs } from "@/components/nav/Breadcrumbs";
 import type { UtteranceSearchResult } from "@/lib/types";
 import {
   formatTimestamp,
@@ -76,14 +77,9 @@ export default async function SearchPage({
   // <div>, not <main>: the root layout already renders the <main> landmark.
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
-      <nav aria-label="Breadcrumb">
-        <Link
-          href="/"
-          className="rounded text-lg font-medium text-teal-800 underline decoration-teal-300 underline-offset-4 hover:text-teal-950 hover:decoration-teal-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
-        >
-          ← All meetings
-        </Link>
-      </nav>
+      <Breadcrumbs
+        items={[{ label: "Library", href: "/library" }, { label: "Search" }]}
+      />
 
       <h1 className="mt-5 text-3xl font-bold tracking-tight text-slate-900">
         Search transcripts
