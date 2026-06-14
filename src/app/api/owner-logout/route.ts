@@ -12,7 +12,7 @@ export async function POST(): Promise<NextResponse> {
   const res = NextResponse.json({ ok: true });
   res.cookies.set(OWNER_COOKIE, "", {
     httpOnly: true,
-    sameSite: "strict",
+    sameSite: "lax",
     secure: true,
     path: "/",
     maxAge: 0,

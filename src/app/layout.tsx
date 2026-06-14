@@ -97,8 +97,18 @@ export default async function RootLayout({
           {children}
         </main>
         <footer className="border-t border-line bg-surface">
-          <div className="mx-auto w-full max-w-6xl px-4 py-5 text-sm text-ink-soft sm:px-6">
-            CivicScribe: a personal archive of public meetings, built accessibility-first.
+          <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-5 text-sm text-ink-soft sm:px-6">
+            <span>
+              CivicScribe: a personal archive of public meetings, built accessibility-first.
+            </span>
+            {!isAdmin && (
+              <Link
+                href="/owner-login"
+                className="text-ink-soft underline-offset-4 hover:text-ink hover:underline"
+              >
+                Owner sign in
+              </Link>
+            )}
           </div>
         </footer>
       </body>
