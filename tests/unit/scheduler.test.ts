@@ -39,6 +39,20 @@ function weeklyTuesday(nextFireAt: string): NewSchedule {
   };
 }
 
+// A one-off fires exactly once at a chosen instant: recurrence is null and the
+// sweep disables it after firing (no nextFire advance).
+function oneOff(nextFireAt: string): NewSchedule {
+  return {
+    title: "Record once",
+    body_name: "Lawrence City Council",
+    source_type: "stream",
+    source_spec: { type: "fixed_url", url: "https://example.org/live" },
+    recurrence: null,
+    one_off: true,
+    next_fire_at: nextFireAt,
+  };
+}
+
 const OCCURRENCE = "2026-07-14T23:00:00.000Z";
 const AFTER = new Date("2026-07-15T00:00:00.000Z");
 
@@ -134,6 +148,26 @@ describe("sweepSchedules", () => {
     await expect(
       base.createMeeting({ title: "second", ...common })
     ).rejects.toThrow();
+  });
+
+  it("fires a one-off exactly once then disables it", async () => {
+    const schedule = await store.createSchedule(oneOff(OCCURRENCE));
+
+    const first = await sweepSchedules(store, AFTER);
+    expect(first.fired).toHaveLength(1);
+    expect(await store.listMeetings()).toHaveLength(1);
+
+    // Disabled after firing; next_fire_at is left at the fired instant.
+    const after = await store.getSchedule(schedule.id);
+    expect(after?.enabled).toBe(false);
+    expect(after?.next_fire_at).toBe(OCCURRENCE);
+    expect(after?.last_fired_at).toBe(AFTER.toISOString());
+
+    // A later sweep materializes no second meeting (no longer due).
+    const later = new Date("2026-08-01T00:00:00.000Z");
+    const second = await sweepSchedules(store, later);
+    expect(second.fired).toHaveLength(0);
+    expect(await store.listMeetings()).toHaveLength(1);
   });
 
   it("catches up a long-stale schedule with one meeting and a future next_fire_at", async () => {
