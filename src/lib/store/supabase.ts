@@ -34,6 +34,8 @@ import {
   type MeetingKind,
   type SpeakerAlias,
   type Summary,
+  type TopicMeeting,
+  type TopicSummary,
   type Transcript,
   type Utterance,
   type UtteranceSearchResult,
@@ -41,6 +43,7 @@ import {
 import type { DataStore, FileStorage } from "@/lib/store/types";
 import { orderSearchResults } from "@/lib/store/search-order";
 import { sourceKey } from "@/lib/net/source-key";
+import { aggregateTopics, topicMatchesSlug } from "@/lib/topics";
 
 // ---------------------------------------------------------------------------
 // Local row types (no generated Supabase types available). Enum-ish columns
@@ -651,6 +654,76 @@ export class SupabaseStore implements DataStore {
       .maybeSingle();
     if (error) fail("getSummaryByMeeting", error);
     return data ? mapSummary(data as SummaryRow) : null;
+  }
+
+  // -- topics (public /tags browse, published-only) ---------------------------
+
+  async listTopics(): Promise<TopicSummary[]> {
+    // Pull only published meetings' summary topics, then aggregate in TS via
+    // the shared aggregateTopics() so the buckets/ordering are byte-identical to
+    // MemoryStore. !inner restricts to summaries whose parent meeting matches
+    // the published=true filter (the GIN index in migration 0007 keeps the
+    // jsonb topics column cheap to scan as the corpus grows). The page loop
+    // gets past PostgREST's default 1000-row cap.
+    const PAGE = 1000;
+    const rows: Array<{ meetingId: string; topics: string[] }> = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data, error } = await this.client
+        .from("summaries")
+        .select("meeting_id, topics, meetings!inner(published)")
+        .eq("meetings.published", true)
+        .range(offset, offset + PAGE - 1);
+      if (error) fail("listTopics", error);
+      const page = (data ?? []) as Array<{
+        meeting_id: string;
+        topics: unknown;
+      }>;
+      for (const r of page) {
+        rows.push({ meetingId: r.meeting_id, topics: toStringArray(r.topics) });
+      }
+      if (page.length < PAGE) break;
+    }
+    return aggregateTopics(rows);
+  }
+
+  async getTopicMeetings(slug: string): Promise<TopicMeeting[]> {
+    if (slug === "") return [];
+    // Fetch published meetings with their summary's overview + topics, newest
+    // first (id breaks created_at ties, matching MemoryStore's insertion-order
+    // tiebreak). The slug match is lossy (topicMatchesSlug re-slugifies each
+    // raw topic), so the final filter runs in TS to stay identical to
+    // MemoryStore; the GIN index (0007) backs cheaper pre-filtering as the
+    // corpus grows.
+    const PAGE = 1000;
+    const out: TopicMeeting[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data, error } = await this.client
+        .from("meetings")
+        .select("*, summaries!inner(overview, topics)")
+        .eq("published", true)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(offset, offset + PAGE - 1);
+      if (error) fail("getTopicMeetings", error);
+      const page = (data ?? []) as Array<
+        MeetingRow & { summaries: Array<{ overview: string; topics: unknown }> }
+      >;
+      for (const row of page) {
+        // !inner guarantees at least one summary row; newest summary wins if a
+        // meeting somehow has more than one (createSummary replaces in practice).
+        const summary = row.summaries[0];
+        if (!summary) continue;
+        const topics = toStringArray(summary.topics);
+        if (!topics.some((t) => topicMatchesSlug(t, slug))) continue;
+        out.push({
+          meeting: mapMeeting(row),
+          overview: summary.overview,
+          topics,
+        });
+      }
+      if (page.length < PAGE) break;
+    }
+    return out;
   }
 
   // -- speaker aliases ---------------------------------------------------------

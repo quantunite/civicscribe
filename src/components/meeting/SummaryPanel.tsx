@@ -4,6 +4,7 @@
 
 import type { MeetingKind, MeetingStatus, Summary } from "@/lib/types";
 import { summaryLabels } from "@/lib/summary-labels";
+import { TopicChips } from "@/components/nav/TopicChips";
 
 const PROGRESS_NOTES: Partial<Record<MeetingStatus, string>> = {
   pending: "This meeting is queued for processing.",
@@ -142,16 +143,10 @@ export function SummaryPanel({
           >
             Topics
           </h3>
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {summary.topics.map((topic, i) => (
-              <li
-                key={i}
-                className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-base font-medium text-slate-800"
-              >
-                {topic}
-              </li>
-            ))}
-          </ul>
+          <TopicChips topics={summary.topics} className="mt-2" />
+          <p className="sr-only">
+            Select a topic to browse other published meetings about it.
+          </p>
         </section>
       )}
     </section>

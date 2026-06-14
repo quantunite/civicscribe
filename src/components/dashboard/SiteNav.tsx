@@ -4,9 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// Links every visitor sees.
+// Links every visitor sees. /library is the public entry point into the
+// curated library; / remains the operator dashboard.
 const PUBLIC_LINKS = [
   { href: "/", label: "Meetings" },
+  { href: "/library", label: "Library" },
   { href: "/crash-course", label: "Crash Course Corner" },
   { href: "/search", label: "Search" },
 ] as const;

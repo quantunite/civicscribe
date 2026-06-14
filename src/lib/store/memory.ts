@@ -33,6 +33,8 @@ import {
   type ScheduleUpdate,
   type SpeakerAlias,
   type Summary,
+  type TopicMeeting,
+  type TopicSummary,
   type Transcript,
   type Utterance,
   type UtteranceSearchResult,
@@ -40,6 +42,7 @@ import {
 import type { DataStore, FileStorage } from "@/lib/store/types";
 import { orderSearchResults } from "@/lib/store/search-order";
 import { sourceKey } from "@/lib/net/source-key";
+import { aggregateTopics, topicMatchesSlug } from "@/lib/topics";
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -555,6 +558,47 @@ export class MemoryStore implements DataStore {
       const db = await this.load();
       const summary = db.summaries.find((s) => s.meeting_id === meetingId);
       return summary ? clone(summary) : null;
+    });
+  }
+
+  // -- topics (public /tags browse, published-only) ---------------------------
+
+  listTopics(): Promise<TopicSummary[]> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const publishedIds = new Set(
+        db.meetings.filter((m) => m.published).map((m) => m.id)
+      );
+      const rows = db.summaries
+        .filter((s) => publishedIds.has(s.meeting_id))
+        .map((s) => ({ meetingId: s.meeting_id, topics: s.topics }));
+      return aggregateTopics(rows);
+    });
+  }
+
+  getTopicMeetings(slug: string): Promise<TopicMeeting[]> {
+    return this.withLock(async () => {
+      if (slug === "") return [];
+      const db = await this.load();
+      const summaryByMeeting = new Map(
+        db.summaries.map((s) => [s.meeting_id, s])
+      );
+
+      const matches = db.meetings.filter((m) => {
+        if (!m.published) return false;
+        const summary = summaryByMeeting.get(m.id);
+        if (!summary) return false;
+        return summary.topics.some((t) => topicMatchesSlug(t, slug));
+      });
+
+      return this.sortNewestFirst(matches).map((m) => {
+        const summary = summaryByMeeting.get(m.id)!;
+        return clone({
+          meeting: m,
+          overview: summary.overview,
+          topics: summary.topics,
+        });
+      });
     });
   }
 
