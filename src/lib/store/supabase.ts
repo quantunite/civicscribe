@@ -80,6 +80,7 @@ interface ScheduleRow {
   source_type: ScheduledSourceType;
   source_spec: unknown;
   recurrence: unknown;
+  one_off: boolean;
   enabled: boolean;
   next_fire_at: string;
   last_fired_at: string | null;
@@ -190,7 +191,8 @@ function mapSchedule(row: ScheduleRow): Schedule {
     kind: row.kind ?? "civic",
     source_type: row.source_type,
     source_spec: row.source_spec as ScheduleSourceSpec,
-    recurrence: row.recurrence as Recurrence,
+    recurrence: (row.recurrence ?? null) as Recurrence | null,
+    one_off: row.one_off ?? false,
     enabled: row.enabled,
     next_fire_at: row.next_fire_at,
     last_fired_at: row.last_fired_at,
@@ -1017,7 +1019,8 @@ export class SupabaseStore implements DataStore {
         kind: input.kind ?? "civic",
         source_type: input.source_type,
         source_spec: input.source_spec,
-        recurrence: input.recurrence,
+        recurrence: input.recurrence ?? null,
+        one_off: input.one_off ?? false,
         enabled: input.enabled ?? true,
         next_fire_at: input.next_fire_at,
       })
