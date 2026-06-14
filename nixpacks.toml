@@ -4,6 +4,15 @@
 # version. So: clean (lockfile-free) install, then install the arch+version
 # matched Linux binaries dynamically off whatever versions actually resolved.
 # Builder arch confirmed x86_64. Tailwind is pinned to 4.3.0 for determinism.
+
+# Runtime media tools for the stream/course capture path (src/.../ytdlp.ts):
+# yt-dlp fetches captions / extracts audio from a source URL, and yt-dlp needs
+# ffmpeg for "-x --audio-format m4a". Both must be on PATH in the runtime image,
+# so they go in the nix setup phase. node is listed explicitly so providing this
+# phase does not drop the auto-detected Node toolchain.
+[phases.setup]
+nixPkgs = ["nodejs_22", "ffmpeg", "yt-dlp"]
+
 [phases.install]
 cmds = [
   "rm -f package-lock.json",
