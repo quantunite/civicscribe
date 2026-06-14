@@ -46,5 +46,6 @@ next-env.d.ts
 /playwright-report/
 .data-e2e/
 
-# but keep the env template
+# but keep the env templates (no real secrets in these)
 !.env.example
+!.env.railway.example

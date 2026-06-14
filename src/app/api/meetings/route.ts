@@ -5,6 +5,7 @@ import { createAndEnqueueCapture } from "@/lib/meetings/create";
 import { isInternalHost, isZoomHost, parseHttpUrl } from "@/lib/net/url";
 import { sourceKey } from "@/lib/net/source-key";
 import { isAdminRequest } from "@/lib/owner";
+import { enforceSubmitGuardrails } from "@/lib/guardrails";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,6 +76,12 @@ export async function GET(request: Request) {
 
 /** POST /api/meetings — create a zoom or stream meeting and enqueue capture. */
 export async function POST(request: Request) {
+  // Cost/abuse guardrails for public generation (admin-exempt; no-op when
+  // OWNER_SECRET is unset). Enforced before any work so a capped caller never
+  // reaches paid processing.
+  const limited = enforceSubmitGuardrails(request);
+  if (limited) return limited;
+
   let body: unknown;
   try {
     body = await request.json();

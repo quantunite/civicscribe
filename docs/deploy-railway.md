@@ -38,15 +38,48 @@ Add to the **web** service variables:
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (from the
   `civicscribe` Supabase project; migrations 0001–0005 already applied)
 - `ASSEMBLYAI_API_KEY`, `ANTHROPIC_API_KEY`
-- `APP_BASE_URL=<web public URL>` (used in completion-email links)
+- `APP_BASE_URL=<web public URL>`: used for completion-email links, the OG /
+  canonical `metadataBase`, and (when it is an https host) widening the CSP
+  `img-src` / `media-src` so served audio loads.
 - `TICK_SECRET=<a long random string>`: once set, `/api/jobs/tick` rejects
-  unauthenticated callers. **Set the SAME value on the worker service** so it
-  keeps authenticating (it sends `Authorization: Bearer $TICK_SECRET`).
+  unauthenticated callers. The single-service start command
+  (`scripts/railway-start.mjs`) reads the same value and sends it as
+  `Authorization: Bearer $TICK_SECRET`, so its in-process tick loop keeps
+  authenticating. (If you instead run a separate worker service, set the SAME
+  value there.)
+- `OWNER_SECRET=<a long random string>`: REQUIRED before exposing the app. When
+  unset the access layer is a complete no-op and everyone is treated as admin
+  (fine for dev, unsafe public). It gates delete/manage, speaker edits,
+  schedules, publish/unpublish, and the `/review` queue, and exempts admins from
+  the guardrails below.
+- Cost / abuse guardrails (public generation now spends real money). Admin is
+  exempt from all three; defaults apply when unset:
+  - `MAX_SUBMITS_PER_IP_PER_DAY` (default 20): per-IP daily submission cap.
+  - `MAX_SUBMITS_GLOBAL_PER_DAY` (default 200): coarse global daily intake cap.
+  - `MAX_UPLOAD_MB` (default 200): upload size cap in megabytes.
 - Optional: `RECALL_API_KEY` (Zoom capture), `RESEND_API_KEY` + `NOTIFY_EMAIL`
   (completion emails), `RECALL_WEBHOOK_SECRET` (if you register a Recall webhook
   at `…/api/webhooks/recall?token=<secret>`).
 
+A complete production env template lives at `.env.railway.example`.
+
 Cost: ~$0.17/audio-hr (AssemblyAI) + ~$0.05/audio-hr (Anthropic).
+
+### Ops + safety on the live deploy
+- **`numReplicas` stays 1** (`railway.json`). Two in-process tick loops would
+  double-claim and double-spend on every job. Do not scale the service out.
+- **Healthcheck** hits `/api/health` (a cheap store read) with a 120s timeout
+  (`railway.json`), so a deploy is not marked healthy until the data layer is
+  reachable. The start script also waits for the local port to answer before the
+  first tick fires, so the schedule sweep starts cleanly.
+- **Security headers + CSP** are sent on every route (`next.config.ts` via
+  `src/lib/http/security-headers.ts`): `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy`, `X-Frame-Options: SAMEORIGIN` + `frame-ancestors`, a
+  self-by-default Content-Security-Policy, and a Permissions-Policy. Supabase,
+  Anthropic, and AssemblyAI are all called server-side, so the browser needs no
+  special `connect-src`.
+- **Audio caching**: `/api/audio` sends `Cache-Control: public, max-age=86400,
+  immutable` (the path embeds the immutable meeting id).
 
 ## Notes
 - Production build uses webpack (`next build`), not Turbopack; the Turbopack

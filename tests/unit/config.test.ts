@@ -34,6 +34,46 @@ describe("caption config", () => {
   });
 });
 
+const GUARDRAIL_KEYS = [
+  "MAX_SUBMITS_PER_IP_PER_DAY",
+  "MAX_SUBMITS_GLOBAL_PER_DAY",
+  "MAX_UPLOAD_MB",
+];
+
+describe("cost/abuse guardrail config", () => {
+  afterEach(() => {
+    for (const k of GUARDRAIL_KEYS) delete process.env[k];
+  });
+
+  it("defaults: 20 per-IP/day, 200 global/day, 200 MB upload cap", () => {
+    for (const k of GUARDRAIL_KEYS) delete process.env[k];
+    const c = getConfig();
+    expect(c.maxSubmitsPerIpPerDay).toBe(20);
+    expect(c.maxSubmitsGlobalPerDay).toBe(200);
+    expect(c.maxUploadMb).toBe(200);
+  });
+
+  it("honors env overrides", () => {
+    process.env.MAX_SUBMITS_PER_IP_PER_DAY = "5";
+    process.env.MAX_SUBMITS_GLOBAL_PER_DAY = "50";
+    process.env.MAX_UPLOAD_MB = "100";
+    const c = getConfig();
+    expect(c.maxSubmitsPerIpPerDay).toBe(5);
+    expect(c.maxSubmitsGlobalPerDay).toBe(50);
+    expect(c.maxUploadMb).toBe(100);
+  });
+
+  it("falls back to defaults on non-numeric or non-positive overrides", () => {
+    process.env.MAX_SUBMITS_PER_IP_PER_DAY = "not-a-number";
+    process.env.MAX_SUBMITS_GLOBAL_PER_DAY = "0";
+    process.env.MAX_UPLOAD_MB = "-10";
+    const c = getConfig();
+    expect(c.maxSubmitsPerIpPerDay).toBe(20);
+    expect(c.maxSubmitsGlobalPerDay).toBe(200);
+    expect(c.maxUploadMb).toBe(200);
+  });
+});
+
 describe("owner secret config", () => {
   afterEach(() => {
     delete process.env.OWNER_SECRET;

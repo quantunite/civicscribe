@@ -1,4 +1,5 @@
-import { getFileStorage } from "@/lib/store";
+import { getFileStorage, getStore } from "@/lib/store";
+import { isAdminRequest } from "@/lib/owner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -6,6 +7,17 @@ export const dynamic = "force-dynamic";
 interface ByteRange {
   start: number;
   end: number;
+}
+
+/**
+ * Audio is stored at a deterministic path: meetings/<meetingId>/audio<ext>.
+ * Pull the owning meeting id out of the storage path so the route can enforce
+ * the same published/admin boundary the detail + export routes apply. Returns
+ * null for any path that is not the expected meetings/<id>/... shape.
+ */
+function meetingIdFromStoragePath(storagePath: string): string | null {
+  const match = /^meetings\/([^/]+)\//.exec(storagePath);
+  return match ? match[1] : null;
 }
 
 /**
@@ -40,11 +52,12 @@ function parseRange(header: string, size: number): ByteRange | null {
  * Serves full responses and 206 partial responses so <audio> seeking works
  * against both the local-disk and Supabase storage backends.
  *
- * TODO(published-boundary): this route serves by storage path, not meeting id,
- * so an unpublished (pending-review) meeting's audio is still reachable by
- * anyone who knows/guesses its path. Follow-up: resolve the owning meeting from
- * the path and enforce the same not-published + not-admin -> 404 boundary the
- * detail/export routes now apply.
+ * Published boundary: the raw audio is the most sensitive artifact, so it is
+ * gated exactly like the detail page (page.tsx) and OG metadata: an unpublished
+ * (pending-review) meeting's audio returns 404 to anyone who is not the admin,
+ * resolved from the meeting id embedded in the storage path. Published audio is
+ * cached aggressively; admin-viewed unpublished audio is marked private/no-store
+ * so a shared/CDN cache never persists pending audio.
  */
 export async function GET(
   request: Request,
@@ -62,6 +75,20 @@ export async function GET(
   }
 
   const storagePath = segments.join("/");
+
+  // Published boundary BEFORE storage I/O: resolve the owning meeting and 404
+  // for the public when it is not published. Mirrors page.tsx:118. When
+  // OWNER_SECRET is unset, isAdminRequest is true for everyone (dev/MOCK_MODE),
+  // so this is a no-op there. A path that does not resolve to a known,
+  // visible meeting is a 404 (and is never written to a shared cache).
+  const meetingId = meetingIdFromStoragePath(storagePath);
+  const meeting = meetingId ? await getStore().getMeeting(meetingId) : null;
+  const isAdmin = isAdminRequest(request);
+  const visible = !!meeting && (meeting.published || isAdmin);
+  if (!visible) {
+    return new Response("Not found", { status: 404 });
+  }
+
   const storage = getFileStorage();
   const meta = await storage.stat(storagePath);
   if (!meta) {
@@ -72,7 +99,13 @@ export async function GET(
   const baseHeaders: Record<string, string> = {
     "Content-Type": contentType || "application/octet-stream",
     "Accept-Ranges": "bytes",
-    "Cache-Control": "private, max-age=3600",
+    // Audio paths embed the immutable meeting id (meetings/<id>/audio<ext>) and
+    // the bytes never change once stored. Cache aggressively ONLY for published
+    // audio; an admin viewing pending audio must never be persisted to a
+    // shared/CDN/browser cache (it could outlive an unpublish/delete).
+    "Cache-Control": meeting.published
+      ? "public, max-age=86400, immutable"
+      : "private, no-store",
     // Never let the browser MIME-sniff stored bytes into something
     // executable (e.g. a spoofed upload rendered as HTML).
     "X-Content-Type-Options": "nosniff",

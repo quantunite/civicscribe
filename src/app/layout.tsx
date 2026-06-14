@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import SiteNav from "@/components/dashboard/SiteNav";
+import { getConfig } from "@/lib/config";
 import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
 import "./globals.css";
 
@@ -16,13 +17,34 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_NAME = "CivicScribe";
+const SITE_DESCRIPTION =
+  "Capture, transcribe, and summarize public meetings: a searchable archive of civic business with speaker-labeled transcripts.";
+
+// Site-wide metadata. metadataBase makes per-page relative OG/canonical URLs
+// absolute; it comes from APP_BASE_URL (config.baseUrl) and falls back to
+// localhost in dev. The defaults below are inherited by every page unless a
+// route's generateMetadata overrides them.
 export const metadata: Metadata = {
+  metadataBase: new URL(getConfig().baseUrl),
   title: {
-    default: "CivicScribe",
-    template: "%s · CivicScribe",
+    default: SITE_NAME,
+    template: `%s · ${SITE_NAME}`,
   },
-  description:
-    "Capture, transcribe, and summarize public meetings: a searchable archive of civic business with speaker-labeled transcripts.",
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  robots: { index: true, follow: true },
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 // The nav (and the manage actions it gates) depend on the admin cookie, which

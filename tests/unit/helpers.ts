@@ -42,6 +42,9 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     tickSecret: null,
     recallWebhookSecret: null,
     ownerSecret: null,
+    maxSubmitsPerIpPerDay: 20,
+    maxSubmitsGlobalPerDay: 200,
+    maxUploadMb: 200,
     ...overrides,
   };
 }
