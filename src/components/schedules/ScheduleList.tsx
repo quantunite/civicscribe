@@ -17,7 +17,13 @@ function formatInstant(iso: string | null): string {
     : d.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 }
 
-export default function ScheduleList({ initial }: { initial: Schedule[] }) {
+export default function ScheduleList({
+  initial,
+  isAdmin,
+}: {
+  initial: Schedule[];
+  isAdmin: boolean;
+}) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +72,7 @@ export default function ScheduleList({ initial }: { initial: Schedule[] }) {
   if (initial.length === 0) {
     return (
       <p className="rounded-xl border border-line bg-surface p-8 text-center text-ink-soft">
-        No schedules yet. Create one to auto-capture a recurring meeting.
+        No schedules yet. Record a one-time capture, or set up a repeating one.
       </p>
     );
   }
@@ -100,6 +106,15 @@ export default function ScheduleList({ initial }: { initial: Schedule[] }) {
                   >
                     {s.enabled ? "Active" : "Paused"}
                   </span>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      s.one_off
+                        ? "bg-amber-100 text-amber-900"
+                        : "bg-sky-100 text-sky-900"
+                    }`}
+                  >
+                    {s.one_off ? "One time" : "Repeating"}
+                  </span>
                   {s.kind === "course" && (
                     <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-900">
                       Study Notes
@@ -108,7 +123,9 @@ export default function ScheduleList({ initial }: { initial: Schedule[] }) {
                 </div>
                 <p className="mt-1 text-ink-soft">{s.body_name}</p>
                 <p className="mt-2 text-sm font-medium text-ink">
-                  {describeRecurrence(s.recurrence)}
+                  {s.one_off || s.recurrence === null
+                    ? `One-time capture on ${formatInstant(s.next_fire_at)}`
+                    : describeRecurrence(s.recurrence)}
                 </p>
                 <p className="mt-1 truncate text-sm text-ink-soft">
                   {s.source_type} · {s.source_spec.url}
@@ -128,24 +145,26 @@ export default function ScheduleList({ initial }: { initial: Schedule[] }) {
                   </div>
                 </dl>
               </div>
-              <div className="flex shrink-0 gap-2">
-                <button
-                  type="button"
-                  onClick={() => toggle(s)}
-                  disabled={busyId === s.id}
-                  className="inline-flex min-h-10 items-center rounded-md border border-line-strong bg-surface px-4 font-semibold text-ink hover:bg-primary-soft disabled:opacity-60"
-                >
-                  {s.enabled ? "Pause" : "Resume"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => remove(s)}
-                  disabled={busyId === s.id}
-                  className="inline-flex min-h-10 items-center rounded-md border border-red-200 bg-red-50 px-4 font-semibold text-red-800 hover:bg-red-100 disabled:opacity-60"
-                >
-                  Delete
-                </button>
-              </div>
+              {isAdmin && (
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggle(s)}
+                    disabled={busyId === s.id}
+                    className="inline-flex min-h-10 items-center rounded-md border border-line-strong bg-surface px-4 font-semibold text-ink hover:bg-primary-soft disabled:opacity-60"
+                  >
+                    {s.enabled ? "Pause" : "Resume"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => remove(s)}
+                    disabled={busyId === s.id}
+                    className="inline-flex min-h-10 items-center rounded-md border border-red-200 bg-red-50 px-4 font-semibold text-red-800 hover:bg-red-100 disabled:opacity-60"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
             </div>
           </li>
         ))}

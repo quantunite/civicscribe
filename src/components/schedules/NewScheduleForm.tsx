@@ -12,6 +12,7 @@ interface FieldErrors {
   bodyName?: string;
   sourceUrl?: string;
   timezone?: string;
+  when?: string;
 }
 
 /** Map a server validation issue path to the form field it belongs to. */
@@ -20,6 +21,7 @@ function fieldForIssuePath(path: string): keyof FieldErrors | null {
   if (path === "body_name") return "bodyName";
   if (path === "source_url") return "sourceUrl";
   if (path.startsWith("recurrence.timezone")) return "timezone";
+  if (path === "next_fire_at" || path === "scheduled_at") return "when";
   return null;
 }
 
@@ -90,14 +92,24 @@ function extractIssues(payload: unknown): Array<{ path: string; message: string 
   return [];
 }
 
-export default function NewScheduleForm() {
+export default function NewScheduleForm({ isAdmin }: { isAdmin: boolean }) {
   const router = useRouter();
+
+  // "Record once" (one-off) is available to everyone; "Repeating" (recurring)
+  // is admin only. Non-admins are locked to one-off.
+  const [mode, setMode] = useState<"one-off" | "recurring">("one-off");
 
   const [title, setTitle] = useState("");
   const [bodyName, setBodyName] = useState("");
   const [kind, setKind] = useState<"civic" | "course">("civic");
   const [sourceType, setSourceType] = useState<"zoom" | "stream">("stream");
   const [sourceUrl, setSourceUrl] = useState("");
+
+  // One-off: the chosen future capture time. A datetime-local value carries no
+  // timezone, so new Date(value) reads it in the browser's local zone (the
+  // desired "the meeting starts at this wall-clock time" semantic); we convert
+  // to a UTC ISO instant before sending.
+  const [when, setWhen] = useState("");
 
   const [freq, setFreq] = useState<"weekly" | "monthly">("weekly");
   const [weekday, setWeekday] = useState(2); // Tuesday
@@ -115,6 +127,7 @@ export default function NewScheduleForm() {
   const bodyRef = useRef<HTMLInputElement>(null);
   const urlRef = useRef<HTMLInputElement>(null);
   const tzRef = useRef<HTMLInputElement>(null);
+  const whenRef = useRef<HTMLInputElement>(null);
 
   function validate(): FieldErrors {
     const next: FieldErrors = {};
@@ -133,7 +146,18 @@ export default function NewScheduleForm() {
         "Use a public host: localhost and private addresses aren't allowed.";
     }
 
-    if (!timezone.trim()) {
+    if (mode === "one-off") {
+      if (!when.trim()) {
+        next.when = "Pick the date and time to capture.";
+      } else {
+        const at = new Date(when);
+        if (Number.isNaN(at.getTime())) {
+          next.when = "Enter a valid date and time.";
+        } else if (at.getTime() <= Date.now()) {
+          next.when = "Pick a time in the future.";
+        }
+      }
+    } else if (!timezone.trim()) {
       next.timezone = "Enter an IANA timezone, e.g. America/Chicago.";
     }
     return next;
@@ -143,6 +167,7 @@ export default function NewScheduleForm() {
     if (next.title) titleRef.current?.focus();
     else if (next.bodyName) bodyRef.current?.focus();
     else if (next.sourceUrl) urlRef.current?.focus();
+    else if (next.when) whenRef.current?.focus();
     else if (next.timezone) tzRef.current?.focus();
   }
 
@@ -174,23 +199,36 @@ export default function NewScheduleForm() {
     setSubmitting(true);
     setStatus("Creating schedule…");
     try {
+      const payload =
+        mode === "one-off"
+          ? {
+              mode: "one-off",
+              title: title.trim(),
+              body_name: bodyName.trim(),
+              kind,
+              source_type: sourceType,
+              source_url: sourceUrl.trim(),
+              next_fire_at: new Date(when).toISOString(),
+            }
+          : {
+              mode: "recurring",
+              title: title.trim(),
+              body_name: bodyName.trim(),
+              kind,
+              source_type: sourceType,
+              source_url: sourceUrl.trim(),
+              recurrence: buildRecurrence(),
+            };
       const res = await fetch("/api/schedules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          body_name: bodyName.trim(),
-          kind,
-          source_type: sourceType,
-          source_url: sourceUrl.trim(),
-          recurrence: buildRecurrence(),
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const payload: unknown = await res.json().catch(() => null);
+        const errBody: unknown = await res.json().catch(() => null);
         // Map the server's field issues back onto the form, then focus them.
         const fieldErrors: FieldErrors = {};
-        for (const issue of extractIssues(payload)) {
+        for (const issue of extractIssues(errBody)) {
           const field = fieldForIssuePath(issue.path);
           if (field && !fieldErrors[field]) fieldErrors[field] = issue.message;
         }
@@ -202,7 +240,7 @@ export default function NewScheduleForm() {
           return;
         }
         throw new Error(
-          errorMessage(payload) ??
+          errorMessage(errBody) ??
             `The server couldn't create the schedule (error ${res.status}).`
         );
       }
@@ -225,6 +263,50 @@ export default function NewScheduleForm() {
       noValidate
       className="flex flex-col gap-6 rounded-xl border border-line bg-surface p-6 shadow-sm sm:p-8"
     >
+      {isAdmin && (
+        <fieldset>
+          <legend className="mb-2 font-semibold text-ink">What to record</legend>
+          <div className="flex flex-wrap gap-3">
+            <label
+              className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-4 ${
+                mode === "one-off"
+                  ? "border-accent bg-primary-soft font-semibold text-ink"
+                  : "border-line-strong text-ink-soft"
+              }`}
+            >
+              <input
+                type="radio"
+                name="sched-mode"
+                value="one-off"
+                checked={mode === "one-off"}
+                onChange={() => setMode("one-off")}
+              />
+              Record once
+            </label>
+            <label
+              className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-4 ${
+                mode === "recurring"
+                  ? "border-accent bg-primary-soft font-semibold text-ink"
+                  : "border-line-strong text-ink-soft"
+              }`}
+            >
+              <input
+                type="radio"
+                name="sched-mode"
+                value="recurring"
+                checked={mode === "recurring"}
+                onChange={() => setMode("recurring")}
+              />
+              Repeating
+            </label>
+          </div>
+          <p className="mt-2 text-sm text-ink-soft">
+            Record once captures a single meeting at a future time. Repeating
+            captures every occurrence on a cadence.
+          </p>
+        </fieldset>
+      )}
+
       <div>
         <label htmlFor="sched-title" className={labelClass}>
           Schedule title
@@ -334,12 +416,44 @@ export default function NewScheduleForm() {
           </p>
         ) : (
           <p id="hint-url" className="mt-2 text-sm text-ink-soft">
-            Used for every occurrence. Tip: set the time a bit after the meeting
-            to grab the posted recording (captions, no live timing).
+            {mode === "one-off"
+              ? "Tip: set the time a bit after the meeting to grab the posted recording (captions, no live timing)."
+              : "Used for every occurrence. Tip: set the time a bit after the meeting to grab the posted recording (captions, no live timing)."}
           </p>
         )}
       </div>
 
+      {mode === "one-off" && (
+        <div>
+          <label htmlFor="sched-when" className={labelClass}>
+            Capture time
+            <RequiredMark />
+          </label>
+          <input
+            ref={whenRef}
+            id="sched-when"
+            type="datetime-local"
+            required
+            value={when}
+            onChange={(e) => setWhen(e.target.value)}
+            aria-invalid={errors.when ? true : undefined}
+            aria-describedby={errors.when ? "err-when" : "hint-when"}
+            className={inputClass}
+          />
+          {errors.when ? (
+            <p id="err-when" role="alert" className={errorClass}>
+              {errors.when}
+            </p>
+          ) : (
+            <p id="hint-when" className="mt-2 text-sm text-ink-soft">
+              The date and time to record, in your local time. Must be in the
+              future.
+            </p>
+          )}
+        </div>
+      )}
+
+      {mode === "recurring" && (
       <fieldset className="grid gap-6 sm:grid-cols-2">
         <legend className="mb-2 font-semibold text-ink">Recurrence</legend>
         <div>
@@ -446,6 +560,7 @@ export default function NewScheduleForm() {
           )}
         </div>
       </fieldset>
+      )}
 
       {serverError && (
         <p

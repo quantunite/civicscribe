@@ -1,6 +1,8 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 
 import { getStore } from "@/lib/store";
+import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
 import ScheduleList from "@/components/schedules/ScheduleList";
 
 // next_fire_at / last_fired_at advance as the sweep runs — render fresh.
@@ -9,10 +11,12 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Schedules",
   description:
-    "Auto-capture recurring meetings on a cadence. CivicScribe materializes and processes each occurrence for you.",
+    "Record a one-time capture at a future time, or set up a repeating capture. CivicScribe materializes and processes each occurrence for you.",
 };
 
 export default async function SchedulesPage() {
+  const cookieStore = await cookies();
+  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
   const schedules = await getStore().listSchedules();
 
   return (
@@ -21,9 +25,9 @@ export default async function SchedulesPage() {
         <div>
           <h1 className="text-3xl">Schedules</h1>
           <p className="mt-2 max-w-2xl text-ink-soft">
-            Capture a recurring meeting automatically. Each occurrence becomes a
-            meeting that&apos;s captured, transcribed, and summarized, with no
-            need to add it by hand every week.
+            Record a meeting you will miss at a chosen future time, or set up a
+            repeating capture. Each one becomes a meeting that is captured,
+            transcribed, and summarized for you.
           </p>
         </div>
         <Link
@@ -33,7 +37,7 @@ export default async function SchedulesPage() {
           New schedule
         </Link>
       </div>
-      <ScheduleList initial={schedules} />
+      <ScheduleList initial={schedules} isAdmin={isAdmin} />
     </div>
   );
 }
