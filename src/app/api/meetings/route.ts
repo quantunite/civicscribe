@@ -4,6 +4,7 @@ import { getStore } from "@/lib/store";
 import { createAndEnqueueCapture } from "@/lib/meetings/create";
 import { isInternalHost, isZoomHost, parseHttpUrl } from "@/lib/net/url";
 import { sourceKey } from "@/lib/net/source-key";
+import { isAdminRequest } from "@/lib/owner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,11 +45,14 @@ const createMeetingSchema = z
   });
 
 /**
- * GET /api/meetings — meetings newest first; optional ?kind=civic|course.
+ * GET /api/meetings: meetings newest first; optional ?kind=civic|course.
  *
- * Public route. By default (admin-oriented dashboard) it returns every meeting.
- * With ?published=true it returns the public library feed (published only) so
- * the public dashboard and its poll loop never leak unpublished items.
+ * Published-only is enforced server-side for non-admins: anyone who is not the
+ * admin gets the public library feed (published only), regardless of any query
+ * param, so the list can never leak unpublished/pending items. The admin gets
+ * every meeting by default, or the published feed with ?published=true. When
+ * OWNER_SECRET is unset, isAdminRequest is true for everyone (dev/single-user),
+ * preserving the original "see everything" behavior.
  */
 export async function GET(request: Request) {
   try {
@@ -56,11 +60,12 @@ export async function GET(request: Request) {
     const kindParam = params.get("kind");
     const kind =
       kindParam === "civic" || kindParam === "course" ? kindParam : undefined;
-    const publishedOnly = params.get("published") === "true";
+    const admin = isAdminRequest(request);
+    const wantsAll = admin && params.get("published") !== "true";
     const store = getStore();
-    const meetings = publishedOnly
-      ? await store.listLibrary({ kind })
-      : await store.listMeetings(kind);
+    const meetings = wantsAll
+      ? await store.listMeetings(kind)
+      : await store.listLibrary({ kind });
     return NextResponse.json(meetings);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to list meetings";
