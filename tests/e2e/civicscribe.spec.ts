@@ -393,6 +393,7 @@ test("schedules: create, list, pause, and delete a recurring capture", async ({
 }) => {
   const create = await request.post("/api/schedules", {
     data: {
+      mode: "recurring",
       title: "E2E Weekly Council",
       body_name: "Lawrence City Council",
       source_type: "stream",

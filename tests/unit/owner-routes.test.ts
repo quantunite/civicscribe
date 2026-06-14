@@ -139,7 +139,7 @@ describe("POST /api/owner-login", () => {
     const setCookie = res.headers.get("set-cookie") ?? "";
     expect(setCookie).toContain(`${OWNER_COOKIE}=s3cret`);
     expect(setCookie.toLowerCase()).toContain("httponly");
-    expect(setCookie.toLowerCase()).toContain("samesite=strict");
+    expect(setCookie.toLowerCase()).toContain("samesite=lax");
   });
 
   it("401s on a wrong secret without setting a cookie", async () => {

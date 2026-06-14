@@ -1,6 +1,11 @@
 // POST /api/owner-login — exchange the OWNER_SECRET for the admin session
 // cookie. Body: { secret: string }. On a constant-time match (via isAuthorized)
-// set the HttpOnly, SameSite=Strict, Secure cs-owner cookie; 401 on a miss.
+// set the HttpOnly, SameSite=Lax, Secure cs-owner cookie; 401 on a miss.
+//
+// SameSite=Lax (not Strict): Lax still blocks the cookie on cross-site POST, so
+// every mutation (all POST/PATCH/DELETE routes) keeps its CSRF protection. Lax
+// only relaxes top-level GET navigations, which stops the owner being silently
+// logged out when arriving from an external link or a fresh tab.
 //
 // Complete no-op when OWNER_SECRET is unset: there is no admin gate to unlock,
 // so we return ok WITHOUT setting any cookie (open mode).
@@ -46,7 +51,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const res = NextResponse.json({ ok: true });
   res.cookies.set(OWNER_COOKIE, secret, {
     httpOnly: true,
-    sameSite: "strict",
+    sameSite: "lax",
     secure: true,
     path: "/",
     // 30 days; the admin re-authenticates after that.

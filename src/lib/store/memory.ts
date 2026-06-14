@@ -153,7 +153,13 @@ export class MemoryStore implements DataStore {
         summaries: asArray<Summary>(rec.summaries),
         speaker_aliases: asArray<SpeakerAlias>(rec.speaker_aliases),
         jobs: asArray<Job>(rec.jobs),
-        schedules: asArray<Schedule>(rec.schedules),
+        // Back-fill legacy schedule rows written before the one_off column /
+        // nullable recurrence existed.
+        schedules: asArray<Schedule>(rec.schedules).map((s) => ({
+          ...s,
+          one_off: s.one_off ?? false,
+          recurrence: s.recurrence ?? null,
+        })),
         topic_syntheses: asArray<TopicSynthesis>(rec.topic_syntheses),
       };
     } catch {
@@ -852,7 +858,8 @@ export class MemoryStore implements DataStore {
         kind: input.kind ?? "civic",
         source_type: input.source_type,
         source_spec: input.source_spec,
-        recurrence: input.recurrence,
+        recurrence: input.recurrence ?? null,
+        one_off: input.one_off ?? false,
         enabled: input.enabled ?? true,
         next_fire_at: input.next_fire_at,
         last_fired_at: null,

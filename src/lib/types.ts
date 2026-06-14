@@ -99,7 +99,10 @@ export interface Schedule {
   kind: MeetingKind;
   source_type: ScheduledSourceType;
   source_spec: ScheduleSourceSpec;
-  recurrence: Recurrence;
+  /** Null for a one-off (recurrence is meaningless); set for a recurring schedule. */
+  recurrence: Recurrence | null;
+  /** True for a single future capture: it fires once then the sweep disables it. */
+  one_off: boolean;
   enabled: boolean;
   /** Next occurrence to fire (ISO instant). The sweep selects next_fire_at <= now. */
   next_fire_at: string;
@@ -113,9 +116,13 @@ export interface NewSchedule {
   kind?: MeetingKind;
   source_type: ScheduledSourceType;
   source_spec: ScheduleSourceSpec;
-  recurrence: Recurrence;
+  /** Null for a one-off; the recurrence for a recurring schedule. */
+  recurrence: Recurrence | null;
+  /** Defaults to false (recurring). Pass true for a one-off single capture. */
+  one_off?: boolean;
   enabled?: boolean;
-  /** First fire instant (ISO); compute with firstFireAfter(recurrence, now). */
+  /** Fire instant (ISO). Recurring: firstFireAfter(recurrence, now). One-off:
+   *  the chosen future instant the capture should run at. */
   next_fire_at: string;
 }
 
@@ -126,7 +133,9 @@ export interface ScheduleUpdate {
   kind?: MeetingKind;
   source_type?: ScheduledSourceType;
   source_spec?: ScheduleSourceSpec;
-  recurrence?: Recurrence;
+  /** May be set to null to clear a recurrence (e.g. converting kinds). */
+  recurrence?: Recurrence | null;
+  one_off?: boolean;
   enabled?: boolean;
   next_fire_at?: string;
   last_fired_at?: string | null;

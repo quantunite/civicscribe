@@ -82,17 +82,28 @@ export async function sweepSchedules(
     }
 
     if (!result.fireFailed) {
-      // Advance to the next occurrence strictly after now (skip missed ones).
-      let next = nextFire(schedule.recurrence, new Date(occurrenceKey));
-      let guard = 0;
-      while (next.getTime() <= now.getTime() && guard < 5000) {
-        next = nextFire(schedule.recurrence, next);
-        guard += 1;
+      if (schedule.one_off || schedule.recurrence == null) {
+        // A one-off fires exactly once: disable it so it leaves listDueSchedules
+        // and never fires again. next_fire_at is left at the fired instant.
+        // (recurrence == null is a defensive guard for the same shape.)
+        await store.updateSchedule(schedule.id, {
+          enabled: false,
+          last_fired_at: now.toISOString(),
+        });
+      } else {
+        // Recurring: advance to the next occurrence strictly after now (skip
+        // missed ones).
+        let next = nextFire(schedule.recurrence, new Date(occurrenceKey));
+        let guard = 0;
+        while (next.getTime() <= now.getTime() && guard < 5000) {
+          next = nextFire(schedule.recurrence, next);
+          guard += 1;
+        }
+        await store.updateSchedule(schedule.id, {
+          next_fire_at: next.toISOString(),
+          last_fired_at: now.toISOString(),
+        });
       }
-      await store.updateSchedule(schedule.id, {
-        next_fire_at: next.toISOString(),
-        last_fired_at: now.toISOString(),
-      });
     }
 
     fired.push(result);
