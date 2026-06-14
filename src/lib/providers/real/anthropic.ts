@@ -10,6 +10,8 @@ import { z } from "zod";
 import type { AppConfig } from "@/lib/config";
 import type { SummaryInput, SummaryProvider } from "@/lib/providers/types";
 import type { MeetingKind, MeetingSummaryContent } from "@/lib/types";
+import { log } from "@/lib/logger";
+import { estimateAnthropicUsd } from "@/lib/spend";
 
 const MAX_TOKENS = 8_192;
 
@@ -213,7 +215,22 @@ export class AnthropicSummaryProvider implements SummaryProvider {
       }
 
       try {
-        return parseSummaryText(textBlock.text);
+        const summary = parseSummaryText(textBlock.text);
+        // Per-job spend logging (observability only): token usage + an
+        // estimated USD for this summary. Logged on success so the global daily
+        // spend is observable once real keys are on.
+        const inputTokens = response.usage?.input_tokens ?? 0;
+        const outputTokens = response.usage?.output_tokens ?? 0;
+        log.info("anthropic: summary spend", {
+          model: this.config.anthropicModel,
+          inputTokens,
+          outputTokens,
+          estimatedUsd: Number(
+            estimateAnthropicUsd(inputTokens, outputTokens).toFixed(4)
+          ),
+          attempt: attempt + 1,
+        });
+        return summary;
       } catch (err) {
         if (err instanceof SummaryParseError) {
           lastParseError = err;

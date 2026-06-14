@@ -22,6 +22,7 @@
 import { getConfig } from "@/lib/config";
 import { getProviders } from "@/lib/providers";
 import { getFileStorage, getStore } from "@/lib/store";
+import { log } from "@/lib/logger";
 import { MAX_JOB_ATTEMPTS, type JobType, type MeetingStatus } from "@/lib/types";
 import type { DataStore } from "@/lib/store/types";
 import { JobNotReadyError } from "@/lib/jobs/errors";
@@ -126,7 +127,9 @@ export async function processOneJob(): Promise<ProcessOneJobResult> {
       await reapStaleJobs(store);
       await reconcileMeetings(store);
     } catch (err) {
-      console.error("[runner] crash-recovery pass failed:", err);
+      log.error("runner: crash-recovery pass failed", {
+        error: errorMessage(err),
+      });
     }
 
     const job = await store.claimNextJob();
@@ -208,10 +211,9 @@ export async function processOneJob(): Promise<ProcessOneJobResult> {
       }
     } catch (err) {
       const message = errorMessage(err);
-      console.error(
-        `[runner] post-stage bookkeeping failed for job ${job.id} (${job.type}); ` +
-          "leaving it running for the lease reaper:",
-        err
+      log.error(
+        "runner: post-stage bookkeeping failed; leaving job running for the lease reaper",
+        { jobId: job.id, type: job.type, error: message }
       );
       return {
         processed: true,

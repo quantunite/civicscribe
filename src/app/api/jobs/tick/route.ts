@@ -9,6 +9,7 @@ import { sweepSchedules } from "@/lib/jobs/scheduler";
 import { getConfig } from "@/lib/config";
 import { getStore } from "@/lib/store";
 import { isAuthorized } from "@/lib/auth";
+import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,13 +29,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     schedulesFired = swept.fired.filter((f) => f.meetingId && !f.skipped).length;
     for (const f of swept.fired) {
       if (f.fireFailed) {
-        console.error(
-          `[tick] schedule ${f.scheduleId} failed to fire occurrence ${f.occurrenceKey} (will retry): ${f.error}`
-        );
+        log.error("tick: schedule failed to fire (will retry)", {
+          scheduleId: f.scheduleId,
+          occurrenceKey: f.occurrenceKey,
+          error: f.error,
+        });
       }
     }
   } catch (err) {
-    console.error("[tick] schedule sweep failed:", err);
+    log.error("tick: schedule sweep failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   const result = await processOneJob();

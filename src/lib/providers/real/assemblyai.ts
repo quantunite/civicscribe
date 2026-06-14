@@ -9,6 +9,8 @@ import type {
   TranscriptionProvider,
   TranscriptionResult,
 } from "@/lib/providers/types";
+import { log } from "@/lib/logger";
+import { estimateAssemblyAiUsd } from "@/lib/spend";
 
 const API_BASE = "https://api.assemblyai.com/v2";
 const POLL_INTERVAL_MS = 3_000;
@@ -163,6 +165,21 @@ export class AssemblyAiTranscriptionProvider implements TranscriptionProvider {
           end_ms: typeof u.end === "number" ? u.end : 0,
           text: u.text ?? "",
         }));
+
+        // Per-job spend logging (observability only): estimated USD for the
+        // audio hours transcribed. Logged on completion so the global daily
+        // spend is observable once real keys are on.
+        const durationSeconds =
+          typeof transcript.audio_duration === "number"
+            ? transcript.audio_duration
+            : null;
+        log.info("assemblyai: transcription spend", {
+          transcriptId,
+          durationSeconds,
+          estimatedUsd: Number(
+            estimateAssemblyAiUsd(durationSeconds).toFixed(4)
+          ),
+        });
 
         return {
           rawJson: transcript,

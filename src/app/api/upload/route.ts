@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server";
 import { getStore, getFileStorage } from "@/lib/store";
+import { getConfig } from "@/lib/config";
+import { enforceSubmitGuardrails } from "@/lib/guardrails";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const DEFAULT_MAX_UPLOAD_MB = 512;
-
-/** Upload size cap in bytes (override with the MAX_UPLOAD_MB env var). */
+/** Upload size cap in bytes. Single source of truth: config.maxUploadMb
+ *  (MAX_UPLOAD_MB env, default 200). */
 function maxUploadBytes(): number {
-  const raw = process.env.MAX_UPLOAD_MB;
-  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
-  const mb =
-    Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_UPLOAD_MB;
-  return mb * 1024 * 1024;
+  return getConfig().maxUploadMb * 1024 * 1024;
 }
 
 // Extension allowlist mapped to the MIME type we STORE. The client-provided
@@ -56,6 +53,12 @@ function tooLargeResponse(limitBytes: number) {
  * to transcription for uploads).
  */
 export async function POST(request: Request) {
+  // Cost/abuse guardrails for public generation (admin-exempt; no-op when
+  // OWNER_SECRET is unset). Enforced before reading the (potentially large)
+  // upload body so a capped caller never streams a file we will not process.
+  const limited = enforceSubmitGuardrails(request);
+  if (limited) return limited;
+
   const limitBytes = maxUploadBytes();
 
   // Cheap rejection BEFORE reading the body: trust a declared Content-Length

@@ -30,11 +30,30 @@ export interface AppConfig {
    *  open mode: the access layer is a complete no-op so dev + the test suite run
    *  unchanged. Set it to gate the admin surface for a public deploy. */
   ownerSecret: string | null;
+  /** Cost/abuse guardrail: max public submissions (generate + upload) per
+   *  client IP per UTC day. Admin is exempt. Default 20. */
+  maxSubmitsPerIpPerDay: number;
+  /** Cost/abuse guardrail: max public submissions across ALL IPs per UTC day,
+   *  a coarse global daily intake cap. Admin is exempt. Default 200. */
+  maxSubmitsGlobalPerDay: number;
+  /** Single source of truth for the upload size cap, in megabytes. The upload
+   *  route derives its byte limit from this. Default 200. */
+  maxUploadMb: number;
 }
 
 function env(name: string): string | null {
   const v = process.env[name];
   return v && v.trim() !== "" ? v : null;
+}
+
+/** Read a positive-integer env var, falling back to `fallback` when unset,
+ *  non-numeric, or non-positive (a misconfigured cap must never disable itself
+ *  or, worse, become an unbounded/negative limit). */
+function envPositiveInt(name: string, fallback: number): number {
+  const raw = env(name);
+  if (raw === null) return fallback;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
 export function getConfig(): AppConfig {
@@ -63,5 +82,8 @@ export function getConfig(): AppConfig {
     tickSecret: env("TICK_SECRET"),
     recallWebhookSecret: env("RECALL_WEBHOOK_SECRET"),
     ownerSecret: env("OWNER_SECRET"),
+    maxSubmitsPerIpPerDay: envPositiveInt("MAX_SUBMITS_PER_IP_PER_DAY", 20),
+    maxSubmitsGlobalPerDay: envPositiveInt("MAX_SUBMITS_GLOBAL_PER_DAY", 200),
+    maxUploadMb: envPositiveInt("MAX_UPLOAD_MB", 200),
   };
 }
