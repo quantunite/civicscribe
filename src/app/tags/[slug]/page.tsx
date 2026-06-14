@@ -5,6 +5,7 @@
 // browse lives under /tags.
 
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { getStore } from "@/lib/store";
 import { Breadcrumbs } from "@/components/nav/Breadcrumbs";
@@ -64,6 +65,14 @@ export default async function TagPage({
             : `${meetings.length} published ${
                 meetings.length === 1 ? "meeting covers" : "meetings cover"
               } this topic.`}
+        </p>
+        <p className="mt-3">
+          <Link
+            href={`/topics/${slug}`}
+            className="rounded font-medium text-teal-800 underline decoration-teal-300 underline-offset-4 hover:text-teal-950 hover:decoration-teal-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+          >
+            See the cross-meeting synthesis
+          </Link>
         </p>
       </div>
 
