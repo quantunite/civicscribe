@@ -62,6 +62,23 @@ export function isAdminRequest(request: Request): boolean {
 }
 
 /**
+ * Server-component admin check. The async root layout reads the cs-owner cookie
+ * via next/headers cookies() and passes its value here to decide whether to
+ * render admin-only UI (the Review link, sign-out, and the manage actions on
+ * cards and the meeting view).
+ *
+ * Mirrors isAdminRequest's hard invariant: TRUE for everyone when ownerSecret
+ * is null (open/no-op mode), so the public dashboard shows every meeting and the
+ * existing suite runs unchanged. Otherwise the cookie value must constant-time
+ * match the secret.
+ */
+export function isAdminCookie(cookieValue: string | null): boolean {
+  const secret = getConfig().ownerSecret;
+  if (!secret) return true;
+  return isAuthorized(cookieValue, secret);
+}
+
+/**
  * Route-handler guard mirroring the edge middleware (defense in depth: even if
  * the matcher misses, the handler still refuses). Returns null when the request
  * may proceed (admin, or open/no-op mode) and a 401 JSON Response otherwise.

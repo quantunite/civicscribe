@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import SiteNav from "@/components/dashboard/SiteNav";
+import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -23,11 +25,18 @@ export const metadata: Metadata = {
     "Capture, transcribe, and summarize public meetings: a searchable archive of civic business with speaker-labeled transcripts.",
 };
 
-export default function RootLayout({
+// The nav (and the manage actions it gates) depend on the admin cookie, which
+// is read per request, so this layout is never statically cached.
+export const dynamic = "force-dynamic";
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
+
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} flex min-h-screen flex-col antialiased`}>
@@ -59,7 +68,7 @@ export default function RootLayout({
               </svg>
               CivicScribe
             </Link>
-            <SiteNav />
+            <SiteNav isAdmin={isAdmin} />
           </div>
         </header>
         <main id="main-content" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">

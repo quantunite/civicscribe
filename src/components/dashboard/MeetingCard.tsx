@@ -36,9 +36,11 @@ export function formatDate(iso: string): string {
 export default function MeetingCard({
   meeting,
   onDeleted,
+  isAdmin = false,
 }: {
   meeting: Meeting;
   onDeleted: (id: string) => void;
+  isAdmin?: boolean;
 }) {
   const isComplete = meeting.status === "complete";
   const [confirming, setConfirming] = useState(false);
@@ -119,6 +121,7 @@ export default function MeetingCard({
         {body}
       </Link>
 
+      {isAdmin && (
       <div className="absolute right-2 top-2 z-10">
         {confirming ? (
           <div className="flex items-center gap-1 rounded-lg border border-line-strong bg-surface p-1 shadow-md">
@@ -171,6 +174,7 @@ export default function MeetingCard({
           </button>
         )}
       </div>
+      )}
     </li>
   );
 }

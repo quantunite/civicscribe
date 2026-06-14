@@ -31,7 +31,13 @@ interface PendingApply {
   display_name: string;
 }
 
-export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
+export function MeetingView({
+  detail: initial,
+  isAdmin = false,
+}: {
+  detail: MeetingDetail;
+  isAdmin?: boolean;
+}) {
   const router = useRouter();
   const [detail, setDetail] = useState<MeetingDetail>(initial);
   const [query, setQuery] = useState("");
@@ -279,12 +285,13 @@ export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
               tokens={tokens}
               diarized={diarized}
               onSeek={handleSeek}
-              onRename={handleRename}
+              onRename={isAdmin ? handleRename : undefined}
             />
           </>
         )}
       </section>
 
+      {isAdmin && (
       <section
         aria-label="Delete meeting"
         className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-6"
@@ -330,6 +337,7 @@ export function MeetingView({ detail: initial }: { detail: MeetingDetail }) {
           </p>
         )}
       </section>
+      )}
 
       <div className="sticky bottom-0 z-20">
         {pendingApply && (

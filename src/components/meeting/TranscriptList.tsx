@@ -25,7 +25,9 @@ interface TranscriptListProps {
    *  caption transcripts (no speakers, no audio) render plain text. */
   diarized: boolean;
   onSeek: (ms: number) => void;
-  onRename: (utteranceId: string, name: string) => Promise<void>;
+  /** Persists a renamed speaker. Omit to render speaker names read-only
+   *  (public/non-admin view). */
+  onRename?: (utteranceId: string, name: string) => Promise<void>;
 }
 
 export function TranscriptList({
