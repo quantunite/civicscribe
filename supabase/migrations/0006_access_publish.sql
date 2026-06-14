@@ -22,8 +22,13 @@ alter table meetings
 create index meetings_published_created_at_idx
   on meetings (published, created_at desc);
 
--- Dedup lookups by normalized source key.
-create index meetings_source_key_idx
+-- Dedup lookups by normalized source key. PARTIAL UNIQUE (not a plain index):
+-- two concurrent identical submits must not both insert and double-spend on
+-- generation. The store catches the resulting unique violation and re-reads the
+-- existing row (createMeeting backstop), so the loser of the race surfaces the
+-- winner's meeting instead of erroring. NULL source_keys (uploads, unparseable
+-- URLs) never dedup, so they are excluded from the constraint.
+create unique index meetings_source_key_idx
   on meetings (source_key)
   where source_key is not null;
 

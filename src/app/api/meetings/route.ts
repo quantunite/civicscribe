@@ -101,6 +101,11 @@ export async function POST(request: Request) {
     // Dedup short-circuit: a source we have already generated must not be
     // re-created or re-processed (that spends real money again). Surface the
     // existing meeting so the UI can show it instead.
+    // TODO(tenant-scope): dedup is currently global on source_key. Once
+    // tenant_id is populated, dedup should become tenant-scoped (composite
+    // (tenant_id, source_key)) so two govs can each generate the same public
+    // video independently. Update findBySourceKey + the partial UNIQUE index
+    // (migration 0006) together.
     const key = sourceKey(parsed.data.source_url);
     const existing = await store.findBySourceKey(key);
     if (existing) {

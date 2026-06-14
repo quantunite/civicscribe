@@ -28,17 +28,19 @@ describe("meeting kind", () => {
   });
 
   it("persists course and filters listMeetings by kind", async () => {
+    // Distinct source_urls so the source_key UNIQUE constraint does not collapse
+    // these into one row.
     await store.createMeeting({
       title: "Civic",
       body_name: "Council",
       source_type: "stream",
-      source_url: "https://x/v",
+      source_url: "https://x/civic",
     });
     const course = await store.createMeeting({
       title: "Course",
       body_name: "Channel",
       source_type: "stream",
-      source_url: "https://x/v",
+      source_url: "https://x/course",
       kind: "course",
     });
     expect(course.kind).toBe("course");

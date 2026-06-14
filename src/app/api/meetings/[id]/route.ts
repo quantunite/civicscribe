@@ -4,11 +4,11 @@
 
 import { NextResponse } from "next/server";
 import { getFileStorage, getStore } from "@/lib/store";
-import { requireAdmin } from "@/lib/owner";
+import { isAdminRequest, requireAdmin } from "@/lib/owner";
 import type { MeetingDetail, Utterance } from "@/lib/types";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const { id } = await params;
@@ -16,6 +16,13 @@ export async function GET(
 
   const meeting = await store.getMeeting(id);
   if (!meeting) {
+    return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
+  }
+
+  // Published boundary on the per-item read: an unpublished (pending-review)
+  // meeting must not be reachable by direct UUID for the public. Return 404
+  // (not 401) so its existence is not even confirmed. Admins get full detail.
+  if (!meeting.published && !isAdminRequest(req)) {
     return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
   }
 

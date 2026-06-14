@@ -4,7 +4,9 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { getStore } from "@/lib/store";
+import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
 import type { UtteranceSearchResult } from "@/lib/types";
 import {
   formatTimestamp,
@@ -57,8 +59,16 @@ export default async function SearchPage({
   const raw = Array.isArray(sp.q) ? sp.q[0] : sp.q;
   const q = raw?.trim() ?? "";
 
+  // Published boundary: the public search page returns published hits only.
+  // An admin (cs-owner cookie) searches everything, including pending-review.
+  const cookieStore = await cookies();
+  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
+
   const results = q
-    ? await getStore().searchUtterances(q, { limit: 200 })
+    ? await getStore().searchUtterances(q, {
+        limit: 200,
+        publishedOnly: !isAdmin,
+      })
     : [];
   const groups = groupByMeeting(results);
   const tokens = tokenize(q);

@@ -187,6 +187,24 @@ export class MemoryStore implements DataStore {
           );
         }
       }
+
+      // Compute the dedup key from source_url unless one was passed explicitly.
+      const key =
+        input.source_key !== undefined
+          ? input.source_key
+          : sourceKey(input.source_url);
+
+      // Mirror the Supabase partial UNIQUE index on source_key (migration 0006):
+      // one meeting per normalized source. Two identical submits must not both
+      // create a row and double-spend on generation. Short-circuit to the
+      // existing meeting (the same outcome the Supabase createMeeting backstop
+      // produces for the loser of a concurrent insert race). NULL keys (uploads,
+      // unparseable URLs) never dedup, matching the partial index's WHERE clause.
+      if (key != null) {
+        const existing = db.meetings.find((m) => m.source_key === key);
+        if (existing) return clone(existing);
+      }
+
       const meeting: Meeting = {
         id: randomUUID(),
         title: input.title,
@@ -204,11 +222,7 @@ export class MemoryStore implements DataStore {
         published: input.published ?? false,
         published_at: null,
         tenant_id: input.tenant_id ?? null,
-        // Compute the dedup key from source_url unless one was passed explicitly.
-        source_key:
-          input.source_key !== undefined
-            ? input.source_key
-            : sourceKey(input.source_url),
+        source_key: key,
         created_at: now(),
       };
       db.meetings.push(meeting);
@@ -716,7 +730,7 @@ export class MemoryStore implements DataStore {
 
   searchUtterances(
     query: string,
-    opts?: { meetingId?: string; limit?: number }
+    opts?: { meetingId?: string; limit?: number; publishedOnly?: boolean }
   ): Promise<UtteranceSearchResult[]> {
     return this.withLock(async () => {
       const db = await this.load();
@@ -739,6 +753,9 @@ export class MemoryStore implements DataStore {
         const meeting = transcriptToMeeting.get(u.transcript_id);
         if (!meeting) continue;
         if (opts?.meetingId && meeting.id !== opts.meetingId) continue;
+        // Published boundary: the public search surface passes publishedOnly so
+        // anonymous search never returns text from unpublished meetings.
+        if (opts?.publishedOnly && !meeting.published) continue;
         const haystack = u.text.toLowerCase();
         if (!tokens.every((tok) => haystack.includes(tok))) continue;
         results.push({

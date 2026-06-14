@@ -4,6 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { getStore } from "@/lib/store";
+import { isAdminRequest } from "@/lib/owner";
 import type { MeetingDetail, Utterance } from "@/lib/types";
 import {
   EXPORT_CONTENT_TYPES,
@@ -28,6 +29,13 @@ export async function GET(
   const store = getStore();
   const meeting = await store.getMeeting(id);
   if (!meeting) {
+    return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
+  }
+
+  // Published boundary: an unpublished meeting's transcript must not be
+  // exportable by direct UUID for the public. 404 (not 401) so existence is
+  // not confirmed. Admins can export anything.
+  if (!meeting.published && !isAdminRequest(req)) {
     return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
   }
 

@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getStore } from "@/lib/store";
+import { isAdminRequest } from "@/lib/owner";
 
 const querySchema = z.object({
   q: z.string().trim().min(1, "q is required"),
@@ -25,9 +26,12 @@ export async function GET(req: Request): Promise<NextResponse> {
   }
 
   const { q, meetingId } = parsed.data;
-  const results = await getStore().searchUtterances(
-    q,
-    meetingId ? { meetingId } : undefined
-  );
+  // Published boundary: the public surface searches published meetings only.
+  // Admins (cookie/Bearer) search everything, including pending-review items.
+  const publishedOnly = !isAdminRequest(req);
+  const results = await getStore().searchUtterances(q, {
+    ...(meetingId ? { meetingId } : {}),
+    publishedOnly,
+  });
   return NextResponse.json({ results });
 }

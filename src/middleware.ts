@@ -64,10 +64,13 @@ function hasValidCredential(request: NextRequest, secret: string): boolean {
  *  AND path matter: GET reads of the same paths are public. */
 function isAdminSurface(method: string, pathname: string): boolean {
   // --- gated pages (any method, normally GET navigations) ---
+  // NOTE: /meetings/new and /crash-course/new are deliberately PUBLIC. Generation
+  // is open-with-guardrails (the public submits; an admin later approves to
+  // publish), so the submit forms must stay reachable even when OWNER_SECRET is
+  // set. The mutating POST routes they call (POST /api/meetings, /api/upload)
+  // are also open; only manage/publish actions are gated.
   const ADMIN_PAGES = [
     "/schedules",
-    "/meetings/new",
-    "/crash-course/new",
     "/review", // the moderation queue page
   ];
   for (const page of ADMIN_PAGES) {
@@ -152,9 +155,6 @@ export const config = {
     "/api/schedules/:path*",
     "/schedules/:path*",
     "/schedules",
-    "/meetings/new",
-    "/crash-course/new/:path*",
-    "/crash-course/new",
     "/review/:path*",
     "/review",
   ],

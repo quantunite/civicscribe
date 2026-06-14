@@ -124,10 +124,9 @@ describe("middleware — gated pages redirect to /owner-login when set", () => {
     expect(res.headers.get("location")).toContain("/owner-login");
   });
 
-  it("redirects /meetings/new and /crash-course/new", () => {
+  it("redirects /review (the moderation queue)", () => {
     process.env.OWNER_SECRET = SECRET;
-    expect(res307(middleware(mk("/meetings/new")))).toBe(true);
-    expect(res307(middleware(mk("/crash-course/new")))).toBe(true);
+    expect(res307(middleware(mk("/review")))).toBe(true);
   });
 
   it("allows the gated page with the correct cookie", () => {
@@ -179,6 +178,20 @@ describe("middleware — public surface stays open even when set", () => {
     expect(isPassThrough(middleware(mk("/meetings/abc")))).toBe(true);
     expect(isPassThrough(middleware(mk("/search")))).toBe(true);
     expect(isPassThrough(middleware(mk("/crash-course")))).toBe(true);
+  });
+
+  it("leaves the public submit forms open (generation is open-with-guardrails)", () => {
+    process.env.OWNER_SECRET = SECRET;
+    // /meetings/new and /crash-course/new are PUBLIC: the public submits and an
+    // admin approves later, so the forms stay reachable even when the secret is set.
+    expect(isPassThrough(middleware(mk("/meetings/new")))).toBe(true);
+    expect(isPassThrough(middleware(mk("/crash-course/new")))).toBe(true);
+  });
+
+  it("keeps /schedules and /review gated (redirect to /owner-login)", () => {
+    process.env.OWNER_SECRET = SECRET;
+    expect(isPassThrough(middleware(mk("/schedules")))).toBe(false);
+    expect(isPassThrough(middleware(mk("/review")))).toBe(false);
   });
 
   it("excludes the already-secret-gated tick + Recall webhook", () => {

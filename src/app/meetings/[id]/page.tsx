@@ -97,6 +97,11 @@ export default async function MeetingDetailPage({
   const cookieStore = await cookies();
   const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
 
+  // Published boundary: an unpublished (pending-review) meeting must not be
+  // reachable by direct UUID for the public. 404 (notFound) rather than reveal
+  // that it exists. Admins see the full detail.
+  if (!meeting.published && !isAdmin) notFound();
+
   // <div>, not <main>: the root layout already renders the <main> landmark.
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">

@@ -158,10 +158,12 @@ export interface DataStore {
 
   // -- search ---------------------------------------------------------------------
   /** Full-text search across utterances. When meetingId is given, restrict to
-   *  that meeting. Newest meetings first, then by start_ms. */
+   *  that meeting. When publishedOnly is true, only hits in published meetings
+   *  are returned (the public surface passes this so anonymous search never
+   *  leaks unpublished text). Newest meetings first, then by start_ms. */
   searchUtterances(
     query: string,
-    opts?: { meetingId?: string; limit?: number }
+    opts?: { meetingId?: string; limit?: number; publishedOnly?: boolean }
   ): Promise<UtteranceSearchResult[]>;
 
   // -- schedules --------------------------------------------------------------

@@ -79,12 +79,49 @@ describe("findBySourceKey — dedup", () => {
     expect(await store.findBySourceKey(null)).toBeNull();
     expect(await store.findBySourceKey("")).toBeNull();
   });
+});
 
-  it("returns the newest match when keys collide", async () => {
-    await store.createMeeting(newMeeting({ title: "old" }));
-    const newer = await store.createMeeting(newMeeting({ title: "new" }));
-    const found = await store.findBySourceKey("youtube:dQw4w9WgXcQ");
-    expect(found?.id).toBe(newer.id);
+describe("createMeeting — source_key uniqueness (race backstop parity)", () => {
+  it("short-circuits a same-source create to the existing meeting", async () => {
+    // The partial UNIQUE index on source_key means a second identical submit
+    // must not create a second row (and double-spend on generation). MemoryStore
+    // short-circuits to the existing meeting, mirroring the Supabase backstop's
+    // re-read-on-unique-violation outcome.
+    const first = await store.createMeeting(newMeeting({ title: "first" }));
+    const second = await store.createMeeting(newMeeting({ title: "second" }));
+
+    expect(second.id).toBe(first.id);
+    expect(second.title).toBe("first"); // existing row, not a new one
+    expect(await store.listMeetings()).toHaveLength(1);
+    // A different youtube URL shape for the same video dedups to the same row.
+    const third = await store.createMeeting(
+      newMeeting({ title: "third", source_url: "https://youtu.be/dQw4w9WgXcQ" })
+    );
+    expect(third.id).toBe(first.id);
+    expect(await store.listMeetings()).toHaveLength(1);
+  });
+
+  it("null source_key (uploads) never dedups", async () => {
+    const a = await store.createMeeting(
+      newMeeting({ source_type: "upload", source_url: null })
+    );
+    const b = await store.createMeeting(
+      newMeeting({ source_type: "upload", source_url: null })
+    );
+    expect(b.id).not.toBe(a.id);
+    expect(await store.listMeetings()).toHaveLength(2);
+  });
+
+  it("two concurrent identical creates yield a single row (race backstop)", async () => {
+    // Fire both before awaiting either: the store serializes them, so the second
+    // sees the first's row and short-circuits instead of double-spending. Only
+    // one meeting must exist and both calls must resolve to the same id.
+    const [a, b] = await Promise.all([
+      store.createMeeting(newMeeting({ title: "racer-1" })),
+      store.createMeeting(newMeeting({ title: "racer-2" })),
+    ]);
+    expect(a.id).toBe(b.id);
+    expect(await store.listMeetings()).toHaveLength(1);
   });
 });
 
@@ -120,8 +157,14 @@ describe("publishMeeting / unpublishMeeting", () => {
 
 describe("listLibrary — published only, newest first", () => {
   it("excludes unpublished meetings", async () => {
-    const a = await store.createMeeting(newMeeting({ title: "A" }));
-    await store.createMeeting(newMeeting({ title: "B" }));
+    // Distinct source_urls: each meeting has its own dedup key so they coexist
+    // (the partial UNIQUE index on source_key now collapses same-source rows).
+    const a = await store.createMeeting(
+      newMeeting({ title: "A", source_url: "https://www.youtube.com/watch?v=aaaaaaaaaaa" })
+    );
+    await store.createMeeting(
+      newMeeting({ title: "B", source_url: "https://www.youtube.com/watch?v=bbbbbbbbbbb" })
+    );
     await store.publishMeeting(a.id);
 
     const lib = await store.listLibrary();
@@ -130,10 +173,18 @@ describe("listLibrary — published only, newest first", () => {
 
   it("filters by kind when given", async () => {
     const civic = await store.createMeeting(
-      newMeeting({ title: "Civic", kind: "civic" })
+      newMeeting({
+        title: "Civic",
+        kind: "civic",
+        source_url: "https://www.youtube.com/watch?v=ccccccccccc",
+      })
     );
     const course = await store.createMeeting(
-      newMeeting({ title: "Course", kind: "course" })
+      newMeeting({
+        title: "Course",
+        kind: "course",
+        source_url: "https://www.youtube.com/watch?v=ddddddddddd",
+      })
     );
     await store.publishMeeting(civic.id);
     await store.publishMeeting(course.id);
@@ -150,9 +201,15 @@ describe("listLibrary — published only, newest first", () => {
 
 describe("listPendingReview — moderation queue", () => {
   it("returns unpublished, non-failed meetings only", async () => {
-    await store.createMeeting(newMeeting({ title: "pending" }));
-    const published = await store.createMeeting(newMeeting({ title: "published" }));
-    const failed = await store.createMeeting(newMeeting({ title: "failed" }));
+    await store.createMeeting(
+      newMeeting({ title: "pending", source_url: "https://www.youtube.com/watch?v=eeeeeeeeeee" })
+    );
+    const published = await store.createMeeting(
+      newMeeting({ title: "published", source_url: "https://www.youtube.com/watch?v=fffffffffff" })
+    );
+    const failed = await store.createMeeting(
+      newMeeting({ title: "failed", source_url: "https://www.youtube.com/watch?v=ggggggggggg" })
+    );
     await store.publishMeeting(published.id);
     await store.setMeetingStatus(failed.id, "failed", "boom");
 

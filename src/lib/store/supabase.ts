@@ -246,6 +246,12 @@ function fail(op: string, error: { message: string }): never {
   throw new Error(`Supabase ${op} failed: ${error.message}`);
 }
 
+/** A Postgres unique-violation (SQLSTATE 23505) surfaced by PostgREST. Used by
+ *  the createMeeting source_key race backstop. */
+function isUniqueViolation(error: { code?: string | null }): boolean {
+  return error.code === "23505";
+}
+
 function makeClient(config: AppConfig, who: string): SupabaseClient {
   if (!config.supabaseUrl || !config.supabaseServiceRoleKey) {
     throw new Error(
@@ -275,6 +281,12 @@ export class SupabaseStore implements DataStore {
   // -- meetings -------------------------------------------------------------
 
   async createMeeting(input: NewMeeting): Promise<Meeting> {
+    // Compute the dedup key from source_url unless one was passed explicitly.
+    const key =
+      input.source_key !== undefined
+        ? input.source_key
+        : sourceKey(input.source_url);
+
     const { data, error } = await this.client
       .from("meetings")
       .insert({
@@ -291,15 +303,24 @@ export class SupabaseStore implements DataStore {
         // (false / null / null) unless an admin promotes the row later.
         published: input.published ?? false,
         tenant_id: input.tenant_id ?? null,
-        // Compute the dedup key from source_url unless one was passed explicitly.
-        source_key:
-          input.source_key !== undefined
-            ? input.source_key
-            : sourceKey(input.source_url),
+        source_key: key,
       })
       .select()
       .single();
-    if (error) fail("createMeeting", error);
+
+    // Race backstop: two concurrent identical submits both pass the route's
+    // check-then-create dedup, but the partial UNIQUE index on source_key
+    // (migration 0006) lets only one insert win. The loser gets a 23505 unique
+    // violation; re-read by source_key and return the winner's row so the
+    // public POST still surfaces { duplicate: true, meeting } instead of erroring
+    // (and we never double-spend on generation).
+    if (error) {
+      if (isUniqueViolation(error) && key) {
+        const existing = await this.findBySourceKey(key);
+        if (existing) return existing;
+      }
+      fail("createMeeting", error);
+    }
     return mapMeeting(data as MeetingRow);
   }
 
@@ -354,9 +375,12 @@ export class SupabaseStore implements DataStore {
     const { data, error } = await this.client
       .from("meetings")
       .select("*")
+      // Secondary order by id keeps created_at ties deterministic, matching
+      // MemoryStore's insertion-order tiebreak.
       .eq("published", false)
       .neq("status", "failed")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
     if (error) fail("listPendingReview", error);
     return ((data ?? []) as MeetingRow[]).map(mapMeeting);
   }
@@ -367,7 +391,10 @@ export class SupabaseStore implements DataStore {
       .from("meetings")
       .select("*")
       .eq("source_key", key)
+      // Secondary order by id breaks created_at ties deterministically so the
+      // "newest match wins" choice matches MemoryStore's insertion-order tiebreak.
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) fail("findBySourceKey", error);
@@ -792,7 +819,7 @@ export class SupabaseStore implements DataStore {
 
   async searchUtterances(
     query: string,
-    opts?: { meetingId?: string; limit?: number }
+    opts?: { meetingId?: string; limit?: number; publishedOnly?: boolean }
   ): Promise<UtteranceSearchResult[]> {
     const q = query.trim();
     if (q === "") return [];
@@ -811,9 +838,29 @@ export class SupabaseStore implements DataStore {
     });
     if (error) fail("searchUtterances", error);
 
-    const results: UtteranceSearchResult[] = (
-      (data ?? []) as SearchUtteranceRow[]
-    ).map((row) => ({
+    let rows = (data ?? []) as SearchUtteranceRow[];
+
+    // Published boundary: the RPC does not filter on publish state, so when
+    // publishedOnly is set we drop hits whose meeting is not published. This
+    // keeps parity with MemoryStore (which filters inline) without altering the
+    // RPC. The candidate set is small (one search window), so a single id->
+    // published lookup is cheap.
+    if (opts?.publishedOnly) {
+      const meetingIds = [...new Set(rows.map((r) => r.meeting_id))];
+      if (meetingIds.length === 0) return [];
+      const { data: pub, error: pubError } = await this.client
+        .from("meetings")
+        .select("id")
+        .eq("published", true)
+        .in("id", meetingIds);
+      if (pubError) fail("searchUtterances (published filter)", pubError);
+      const publishedIds = new Set(
+        ((pub ?? []) as Array<{ id: string }>).map((m) => m.id)
+      );
+      rows = rows.filter((r) => publishedIds.has(r.meeting_id));
+    }
+
+    const results: UtteranceSearchResult[] = rows.map((row) => ({
       utterance: {
         id: row.id,
         transcript_id: row.transcript_id,
