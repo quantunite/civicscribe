@@ -13,13 +13,18 @@ const POLL_INTERVAL_MS = 3000;
  * /api/meetings every 3 seconds while any meeting is still being processed
  * (pending / capturing / transcribing / summarizing). Polling stops on its
  * own once everything is complete or failed.
+ *
+ * Non-admins poll the published-only feed (?published=true) so unpublished
+ * items never leak via the poll, and the delete control on each card is hidden.
  */
 export default function MeetingList({
   initialMeetings,
   kind,
+  isAdmin = false,
 }: {
   initialMeetings: Meeting[];
   kind: MeetingKind;
+  isAdmin?: boolean;
 }) {
   const isCourse = kind === "course";
   const [meetings, setMeetings] = useState<Meeting[]>(initialMeetings);
@@ -33,9 +38,12 @@ export default function MeetingList({
     if (!hasProcessing) return;
 
     let cancelled = false;
+    const query = isAdmin
+      ? `/api/meetings?kind=${kind}`
+      : `/api/meetings?kind=${kind}&published=true`;
     const timer = setInterval(async () => {
       try {
-        const res = await fetch(`/api/meetings?kind=${kind}`, {
+        const res = await fetch(query, {
           cache: "no-store",
         });
         if (!res.ok) return;
@@ -52,7 +60,7 @@ export default function MeetingList({
       cancelled = true;
       clearInterval(timer);
     };
-  }, [hasProcessing, kind]);
+  }, [hasProcessing, kind, isAdmin]);
 
   if (meetings.length === 0) {
     return (
@@ -102,6 +110,7 @@ export default function MeetingList({
             key={meeting.id}
             meeting={meeting}
             onDeleted={handleDeleted}
+            isAdmin={isAdmin}
           />
         ))}
       </ul>

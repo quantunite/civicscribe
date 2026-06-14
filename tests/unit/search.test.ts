@@ -127,4 +127,24 @@ describe("MemoryStore.searchUtterances", () => {
       created_at: expect.any(String),
     });
   });
+
+  it("publishedOnly excludes hits in unpublished meetings", async () => {
+    // Neither seeded meeting is published yet, so the public surface sees none.
+    expect(
+      await store.searchUtterances("drainage", { publishedOnly: true })
+    ).toEqual([]);
+
+    // Publish meeting 2 only: now publishedOnly returns only its hit, while an
+    // unfiltered (admin) search still returns all four.
+    await store.publishMeeting(meeting2Id);
+
+    const publicHits = await store.searchUtterances("drainage", {
+      publishedOnly: true,
+    });
+    expect(publicHits).toHaveLength(1);
+    expect(publicHits[0].meeting.id).toBe(meeting2Id);
+
+    const adminHits = await store.searchUtterances("drainage");
+    expect(adminHits).toHaveLength(4);
+  });
 });

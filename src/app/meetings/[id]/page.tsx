@@ -4,10 +4,12 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getStore } from "@/lib/store";
 import type { MeetingDetail, MeetingStatus, Utterance } from "@/lib/types";
 import { MeetingView } from "@/components/meeting/MeetingView";
+import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +94,14 @@ export default async function MeetingDetailPage({
   if (!detail) notFound();
   const { meeting } = detail;
 
+  const cookieStore = await cookies();
+  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
+
+  // Published boundary: an unpublished (pending-review) meeting must not be
+  // reachable by direct UUID for the public. 404 (notFound) rather than reveal
+  // that it exists. Admins see the full detail.
+  if (!meeting.published && !isAdmin) notFound();
+
   // <div>, not <main>: the root layout already renders the <main> landmark.
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
@@ -124,7 +134,7 @@ export default async function MeetingDetailPage({
       </header>
 
       <div className="mt-8">
-        <MeetingView detail={detail} />
+        <MeetingView detail={detail} isAdmin={isAdmin} />
       </div>
     </div>
   );

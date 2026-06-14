@@ -1,14 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const LINKS = [
+// Links every visitor sees.
+const PUBLIC_LINKS = [
   { href: "/", label: "Meetings" },
   { href: "/crash-course", label: "Crash Course Corner" },
-  { href: "/schedules", label: "Schedules" },
   { href: "/search", label: "Search" },
+] as const;
+
+// Admin-only links (Schedules + the moderation queue are admin-gated routes).
+const ADMIN_LINKS = [
+  { href: "/schedules", label: "Schedules" },
+  { href: "/review", label: "Review" },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
@@ -16,10 +22,25 @@ function isActive(pathname: string, href: string): boolean {
 }
 
 /** Primary site navigation. Inline on desktop; collapses to a disclosure menu
- *  on mobile so the links + CTA never overflow a narrow viewport. */
-export default function SiteNav() {
+ *  on mobile so the links + CTA never overflow a narrow viewport. The Review +
+ *  Schedules links and the sign-out control render only for the admin. */
+export default function SiteNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  const links = isAdmin ? [...PUBLIC_LINKS, ...ADMIN_LINKS] : PUBLIC_LINKS;
+
+  async function signOut() {
+    setOpen(false);
+    try {
+      await fetch("/api/owner-logout", { method: "POST" });
+    } catch {
+      // Best-effort: a failed network call still drops the client-side menu.
+    }
+    router.push("/");
+    router.refresh();
+  }
 
   // Close the menu after navigating.
   useEffect(() => {
@@ -36,11 +57,14 @@ export default function SiteNav() {
   const cta =
     "inline-flex min-h-11 items-center gap-2 rounded-md bg-accent px-5 font-semibold text-white shadow-sm hover:bg-accent-strong focus-visible:outline-white";
 
+  const signOutClass =
+    "inline-flex min-h-11 items-center rounded-md px-4 font-medium text-white hover:bg-white/10 hover:underline hover:decoration-2 hover:underline-offset-8 focus-visible:outline-white";
+
   return (
     <nav aria-label="Primary" className="flex items-center">
       {/* Desktop: inline links + CTA */}
       <ul className="hidden items-center gap-1 md:flex lg:gap-2">
-        {LINKS.map(({ href, label }) => (
+        {links.map(({ href, label }) => (
           <li key={href}>
             <Link
               href={href}
@@ -67,6 +91,13 @@ export default function SiteNav() {
             Add meeting
           </Link>
         </li>
+        {isAdmin && (
+          <li>
+            <button type="button" onClick={signOut} className={signOutClass}>
+              Sign out
+            </button>
+          </li>
+        )}
       </ul>
 
       {/* Mobile: hamburger toggle */}
@@ -103,7 +134,7 @@ export default function SiteNav() {
           className="absolute left-0 right-0 top-full z-20 border-t border-white/15 bg-primary px-4 py-3 shadow-lg md:hidden"
         >
           <ul className="flex flex-col gap-1">
-            {LINKS.map(({ href, label }) => (
+            {links.map(({ href, label }) => (
               <li key={href}>
                 <Link
                   href={href}
@@ -134,6 +165,17 @@ export default function SiteNav() {
                 Add meeting
               </Link>
             </li>
+            {isAdmin && (
+              <li>
+                <button
+                  type="button"
+                  onClick={signOut}
+                  className="flex min-h-11 w-full items-center rounded-md px-4 font-medium text-white hover:bg-white/10"
+                >
+                  Sign out
+                </button>
+              </li>
+            )}
           </ul>
         </div>
       )}

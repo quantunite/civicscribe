@@ -40,6 +40,7 @@ import {
 } from "@/lib/types";
 import type { DataStore, FileStorage } from "@/lib/store/types";
 import { orderSearchResults } from "@/lib/store/search-order";
+import { sourceKey } from "@/lib/net/source-key";
 
 // ---------------------------------------------------------------------------
 // Local row types (no generated Supabase types available). Enum-ish columns
@@ -60,6 +61,10 @@ interface MeetingRow {
   duration_seconds: number | null;
   schedule_id: string | null;
   occurrence_key: string | null;
+  published: boolean;
+  published_at: string | null;
+  tenant_id: string | null;
+  source_key: string | null;
   created_at: string;
 }
 
@@ -155,6 +160,10 @@ function mapMeeting(row: MeetingRow): Meeting {
     duration_seconds: row.duration_seconds,
     schedule_id: row.schedule_id ?? null,
     occurrence_key: row.occurrence_key ?? null,
+    published: row.published ?? false,
+    published_at: row.published_at ?? null,
+    tenant_id: row.tenant_id ?? null,
+    source_key: row.source_key ?? null,
     created_at: row.created_at,
   };
 }
@@ -237,6 +246,12 @@ function fail(op: string, error: { message: string }): never {
   throw new Error(`Supabase ${op} failed: ${error.message}`);
 }
 
+/** A Postgres unique-violation (SQLSTATE 23505) surfaced by PostgREST. Used by
+ *  the createMeeting source_key race backstop. */
+function isUniqueViolation(error: { code?: string | null }): boolean {
+  return error.code === "23505";
+}
+
 function makeClient(config: AppConfig, who: string): SupabaseClient {
   if (!config.supabaseUrl || !config.supabaseServiceRoleKey) {
     throw new Error(
@@ -266,6 +281,12 @@ export class SupabaseStore implements DataStore {
   // -- meetings -------------------------------------------------------------
 
   async createMeeting(input: NewMeeting): Promise<Meeting> {
+    // Compute the dedup key from source_url unless one was passed explicitly.
+    const key =
+      input.source_key !== undefined
+        ? input.source_key
+        : sourceKey(input.source_url);
+
     const { data, error } = await this.client
       .from("meetings")
       .insert({
@@ -278,10 +299,28 @@ export class SupabaseStore implements DataStore {
         audio_storage_path: input.audio_storage_path ?? null,
         schedule_id: input.schedule_id ?? null,
         occurrence_key: input.occurrence_key ?? null,
+        // published / published_at / tenant_id keep their column defaults
+        // (false / null / null) unless an admin promotes the row later.
+        published: input.published ?? false,
+        tenant_id: input.tenant_id ?? null,
+        source_key: key,
       })
       .select()
       .single();
-    if (error) fail("createMeeting", error);
+
+    // Race backstop: two concurrent identical submits both pass the route's
+    // check-then-create dedup, but the partial UNIQUE index on source_key
+    // (migration 0006) lets only one insert win. The loser gets a 23505 unique
+    // violation; re-read by source_key and return the winner's row so the
+    // public POST still surfaces { duplicate: true, meeting } instead of erroring
+    // (and we never double-spend on generation).
+    if (error) {
+      if (isUniqueViolation(error) && key) {
+        const existing = await this.findBySourceKey(key);
+        if (existing) return existing;
+      }
+      fail("createMeeting", error);
+    }
     return mapMeeting(data as MeetingRow);
   }
 
@@ -318,6 +357,79 @@ export class SupabaseStore implements DataStore {
     const { data, error } = await query;
     if (error) fail("listMeetings", error);
     return ((data ?? []) as MeetingRow[]).map(mapMeeting);
+  }
+
+  async listLibrary(opts?: { kind?: MeetingKind }): Promise<Meeting[]> {
+    let query = this.client
+      .from("meetings")
+      .select("*")
+      .eq("published", true)
+      .order("created_at", { ascending: false });
+    if (opts?.kind) query = query.eq("kind", opts.kind);
+    const { data, error } = await query;
+    if (error) fail("listLibrary", error);
+    return ((data ?? []) as MeetingRow[]).map(mapMeeting);
+  }
+
+  async listPendingReview(): Promise<Meeting[]> {
+    const { data, error } = await this.client
+      .from("meetings")
+      .select("*")
+      // Secondary order by id keeps created_at ties deterministic, matching
+      // MemoryStore's insertion-order tiebreak.
+      .eq("published", false)
+      .neq("status", "failed")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+    if (error) fail("listPendingReview", error);
+    return ((data ?? []) as MeetingRow[]).map(mapMeeting);
+  }
+
+  async findBySourceKey(key: string | null): Promise<Meeting | null> {
+    if (!key) return null;
+    const { data, error } = await this.client
+      .from("meetings")
+      .select("*")
+      .eq("source_key", key)
+      // Secondary order by id breaks created_at ties deterministically so the
+      // "newest match wins" choice matches MemoryStore's insertion-order tiebreak.
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) fail("findBySourceKey", error);
+    return data ? mapMeeting(data as MeetingRow) : null;
+  }
+
+  async publishMeeting(id: string): Promise<Meeting> {
+    // Idempotent: keep the original published_at on a re-publish. Read first so
+    // an already-published row is returned unchanged.
+    const existing = await this.getMeeting(id);
+    if (!existing) throw new Error(`Meeting not found: ${id}`);
+    if (existing.published) return existing;
+
+    const { data, error } = await this.client
+      .from("meetings")
+      .update({ published: true, published_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) fail("publishMeeting", error);
+    return mapMeeting(data as MeetingRow);
+  }
+
+  async unpublishMeeting(id: string): Promise<Meeting> {
+    const existing = await this.getMeeting(id);
+    if (!existing) throw new Error(`Meeting not found: ${id}`);
+
+    const { data, error } = await this.client
+      .from("meetings")
+      .update({ published: false, published_at: null })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) fail("unpublishMeeting", error);
+    return mapMeeting(data as MeetingRow);
   }
 
   async updateMeeting(
@@ -707,7 +819,7 @@ export class SupabaseStore implements DataStore {
 
   async searchUtterances(
     query: string,
-    opts?: { meetingId?: string; limit?: number }
+    opts?: { meetingId?: string; limit?: number; publishedOnly?: boolean }
   ): Promise<UtteranceSearchResult[]> {
     const q = query.trim();
     if (q === "") return [];
@@ -726,9 +838,29 @@ export class SupabaseStore implements DataStore {
     });
     if (error) fail("searchUtterances", error);
 
-    const results: UtteranceSearchResult[] = (
-      (data ?? []) as SearchUtteranceRow[]
-    ).map((row) => ({
+    let rows = (data ?? []) as SearchUtteranceRow[];
+
+    // Published boundary: the RPC does not filter on publish state, so when
+    // publishedOnly is set we drop hits whose meeting is not published. This
+    // keeps parity with MemoryStore (which filters inline) without altering the
+    // RPC. The candidate set is small (one search window), so a single id->
+    // published lookup is cheap.
+    if (opts?.publishedOnly) {
+      const meetingIds = [...new Set(rows.map((r) => r.meeting_id))];
+      if (meetingIds.length === 0) return [];
+      const { data: pub, error: pubError } = await this.client
+        .from("meetings")
+        .select("id")
+        .eq("published", true)
+        .in("id", meetingIds);
+      if (pubError) fail("searchUtterances (published filter)", pubError);
+      const publishedIds = new Set(
+        ((pub ?? []) as Array<{ id: string }>).map((m) => m.id)
+      );
+      rows = rows.filter((r) => publishedIds.has(r.meeting_id));
+    }
+
+    const results: UtteranceSearchResult[] = rows.map((row) => ({
       utterance: {
         id: row.id,
         transcript_id: row.transcript_id,

@@ -39,6 +39,7 @@ import {
 } from "@/lib/types";
 import type { DataStore, FileStorage } from "@/lib/store/types";
 import { orderSearchResults } from "@/lib/store/search-order";
+import { sourceKey } from "@/lib/net/source-key";
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -128,12 +129,18 @@ export class MemoryStore implements DataStore {
         parsed && typeof parsed === "object" ? parsed : {}
       ) as Record<string, unknown>;
       this.db = {
-        // Coerce legacy rows written before the kind column existed.
+        // Coerce legacy rows written before the kind / publish columns existed.
         meetings: asArray<Meeting>(rec.meetings).map((m) => ({
           ...m,
           kind: m.kind ?? "civic",
           schedule_id: m.schedule_id ?? null,
           occurrence_key: m.occurrence_key ?? null,
+          published: m.published ?? false,
+          published_at: m.published_at ?? null,
+          tenant_id: m.tenant_id ?? null,
+          // Back-fill the dedup key from the legacy source_url so old rows
+          // dedup too; coalesce to null when there is nothing to derive.
+          source_key: m.source_key ?? sourceKey(m.source_url),
         })),
         transcripts: asArray<Transcript>(rec.transcripts),
         utterances: asArray<Utterance>(rec.utterances),
@@ -180,6 +187,24 @@ export class MemoryStore implements DataStore {
           );
         }
       }
+
+      // Compute the dedup key from source_url unless one was passed explicitly.
+      const key =
+        input.source_key !== undefined
+          ? input.source_key
+          : sourceKey(input.source_url);
+
+      // Mirror the Supabase partial UNIQUE index on source_key (migration 0006):
+      // one meeting per normalized source. Two identical submits must not both
+      // create a row and double-spend on generation. Short-circuit to the
+      // existing meeting (the same outcome the Supabase createMeeting backstop
+      // produces for the loser of a concurrent insert race). NULL keys (uploads,
+      // unparseable URLs) never dedup, matching the partial index's WHERE clause.
+      if (key != null) {
+        const existing = db.meetings.find((m) => m.source_key === key);
+        if (existing) return clone(existing);
+      }
+
       const meeting: Meeting = {
         id: randomUUID(),
         title: input.title,
@@ -194,6 +219,10 @@ export class MemoryStore implements DataStore {
         duration_seconds: null,
         schedule_id: input.schedule_id ?? null,
         occurrence_key: input.occurrence_key ?? null,
+        published: input.published ?? false,
+        published_at: null,
+        tenant_id: input.tenant_id ?? null,
+        source_key: key,
         created_at: now(),
       };
       db.meetings.push(meeting);
@@ -239,6 +268,77 @@ export class MemoryStore implements DataStore {
             (indexOf.get(b.id) ?? 0) - (indexOf.get(a.id) ?? 0)
         )
         .map(clone);
+    });
+  }
+
+  /** Newest-first sort matching listMeetings(): created_at desc, then insertion
+   *  order as a deterministic tiebreak. Mutates the given array in place. */
+  private sortNewestFirst(rows: Meeting[]): Meeting[] {
+    const indexOf = new Map(rows.map((m, i) => [m.id, i]));
+    return [...rows].sort(
+      (a, b) =>
+        b.created_at.localeCompare(a.created_at) ||
+        (indexOf.get(b.id) ?? 0) - (indexOf.get(a.id) ?? 0)
+    );
+  }
+
+  listLibrary(opts?: { kind?: MeetingKind }): Promise<Meeting[]> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const matches = db.meetings.filter(
+        (m) => m.published && (opts?.kind === undefined || m.kind === opts.kind)
+      );
+      return this.sortNewestFirst(matches).map(clone);
+    });
+  }
+
+  listPendingReview(): Promise<Meeting[]> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const matches = db.meetings.filter(
+        (m) => !m.published && m.status !== "failed"
+      );
+      return this.sortNewestFirst(matches).map(clone);
+    });
+  }
+
+  findBySourceKey(sourceKey: string | null): Promise<Meeting | null> {
+    return this.withLock(async () => {
+      if (!sourceKey) return null;
+      const db = await this.load();
+      const matches = db.meetings.filter((m) => m.source_key === sourceKey);
+      // Newest match wins so a re-submit surfaces the most recent generation.
+      const newest = this.sortNewestFirst(matches)[0];
+      return newest ? clone(newest) : null;
+    });
+  }
+
+  publishMeeting(id: string): Promise<Meeting> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const meeting = db.meetings.find((m) => m.id === id);
+      if (!meeting) throw new Error(`Meeting not found: ${id}`);
+      // Idempotent: keep the original published_at on a re-publish.
+      if (!meeting.published) {
+        meeting.published = true;
+        meeting.published_at = now();
+        await this.persist();
+      }
+      return clone(meeting);
+    });
+  }
+
+  unpublishMeeting(id: string): Promise<Meeting> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const meeting = db.meetings.find((m) => m.id === id);
+      if (!meeting) throw new Error(`Meeting not found: ${id}`);
+      if (meeting.published || meeting.published_at !== null) {
+        meeting.published = false;
+        meeting.published_at = null;
+        await this.persist();
+      }
+      return clone(meeting);
     });
   }
 
@@ -630,7 +730,7 @@ export class MemoryStore implements DataStore {
 
   searchUtterances(
     query: string,
-    opts?: { meetingId?: string; limit?: number }
+    opts?: { meetingId?: string; limit?: number; publishedOnly?: boolean }
   ): Promise<UtteranceSearchResult[]> {
     return this.withLock(async () => {
       const db = await this.load();
@@ -653,6 +753,9 @@ export class MemoryStore implements DataStore {
         const meeting = transcriptToMeeting.get(u.transcript_id);
         if (!meeting) continue;
         if (opts?.meetingId && meeting.id !== opts.meetingId) continue;
+        // Published boundary: the public search surface passes publishedOnly so
+        // anonymous search never returns text from unpublished meetings.
+        if (opts?.publishedOnly && !meeting.published) continue;
         const haystack = u.text.toLowerCase();
         if (!tokens.every((tok) => haystack.includes(tok))) continue;
         results.push({

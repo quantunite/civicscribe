@@ -3,6 +3,9 @@
 // Inline-editable speaker name chip. The name is a button; clicking it swaps
 // in a text input. Enter saves (via onRename, which PATCHes the utterance),
 // Escape or blur cancels.
+//
+// When onRename is omitted (public, non-admin view) the chip is read-only: a
+// plain static label with no edit affordance, since renaming is admin-gated.
 
 import { useEffect, useRef, useState } from "react";
 import type { SpeakerColor } from "@/components/meeting/transcript-utils";
@@ -13,8 +16,8 @@ interface SpeakerNameProps {
   /** Resolved display name: speaker_name ?? `Speaker ${label}`. */
   displayName: string;
   color: SpeakerColor;
-  /** Persists the new name. Throws on failure. */
-  onRename: (utteranceId: string, name: string) => Promise<void>;
+  /** Persists the new name. Throws on failure. Omit to render read-only. */
+  onRename?: (utteranceId: string, name: string) => Promise<void>;
 }
 
 export function SpeakerName({
@@ -49,6 +52,7 @@ export function SpeakerName({
   }
 
   async function save() {
+    if (!onRename) return;
     const trimmed = value.trim();
     if (trimmed === "" || trimmed === displayName) {
       cancel();
@@ -64,6 +68,17 @@ export function SpeakerName({
     } finally {
       setSaving(false);
     }
+  }
+
+  // Read-only (public/non-admin): a plain chip, no edit button or input.
+  if (!onRename) {
+    return (
+      <span
+        className={`inline-flex items-center rounded-full border px-3 py-0.5 text-base font-semibold ${color.chip}`}
+      >
+        {displayName}
+      </span>
+    );
   }
 
   if (!editing) {

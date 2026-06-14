@@ -30,7 +30,9 @@ async function seedMeeting(title: string) {
     title,
     body_name: "City Council",
     source_type: "stream",
-    source_url: "https://x/v",
+    // Per-title source_url so the source_key UNIQUE constraint does not collapse
+    // separately-seeded meetings into a single row.
+    source_url: `https://x/${title}`,
   });
   const transcript = await store.createTranscript({
     meeting_id: meeting.id,

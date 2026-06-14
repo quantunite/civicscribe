@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getStore } from "@/lib/store";
 import { createAndEnqueueCapture } from "@/lib/meetings/create";
 import { isInternalHost, isZoomHost, parseHttpUrl } from "@/lib/net/url";
+import { sourceKey } from "@/lib/net/source-key";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,13 +43,24 @@ const createMeetingSchema = z
     }
   });
 
-/** GET /api/meetings — meetings newest first; optional ?kind=civic|course. */
+/**
+ * GET /api/meetings — meetings newest first; optional ?kind=civic|course.
+ *
+ * Public route. By default (admin-oriented dashboard) it returns every meeting.
+ * With ?published=true it returns the public library feed (published only) so
+ * the public dashboard and its poll loop never leak unpublished items.
+ */
 export async function GET(request: Request) {
   try {
-    const kindParam = new URL(request.url).searchParams.get("kind");
+    const params = new URL(request.url).searchParams;
+    const kindParam = params.get("kind");
     const kind =
       kindParam === "civic" || kindParam === "course" ? kindParam : undefined;
-    const meetings = await getStore().listMeetings(kind);
+    const publishedOnly = params.get("published") === "true";
+    const store = getStore();
+    const meetings = publishedOnly
+      ? await store.listLibrary({ kind })
+      : await store.listMeetings(kind);
     return NextResponse.json(meetings);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to list meetings";
@@ -84,7 +96,27 @@ export async function POST(request: Request) {
   }
 
   try {
-    const meeting = await createAndEnqueueCapture(getStore(), {
+    const store = getStore();
+
+    // Dedup short-circuit: a source we have already generated must not be
+    // re-created or re-processed (that spends real money again). Surface the
+    // existing meeting so the UI can show it instead.
+    // TODO(tenant-scope): dedup is currently global on source_key. Once
+    // tenant_id is populated, dedup should become tenant-scoped (composite
+    // (tenant_id, source_key)) so two govs can each generate the same public
+    // video independently. Update findBySourceKey + the partial UNIQUE index
+    // (migration 0006) together.
+    const key = sourceKey(parsed.data.source_url);
+    const existing = await store.findBySourceKey(key);
+    if (existing) {
+      return NextResponse.json(
+        { duplicate: true, meeting: existing },
+        { status: 200 }
+      );
+    }
+
+    // New submission: created published=false (pending admin review).
+    const meeting = await createAndEnqueueCapture(store, {
       title: parsed.data.title,
       body_name: parsed.data.body_name,
       source_type: parsed.data.source_type,

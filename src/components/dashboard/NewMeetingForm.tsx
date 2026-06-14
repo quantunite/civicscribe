@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { Meeting, MeetingKind } from "@/lib/types";
 
 type TabKey = "zoom" | "stream" | "upload";
@@ -42,6 +42,13 @@ interface FieldErrors {
   title?: string;
   bodyName?: string;
   source?: string;
+}
+
+/** Outcome of a successful submit: a freshly-created (pending review) item, or
+ *  an already-existing one the dedup check surfaced. */
+interface SubmitResult {
+  meeting: Meeting;
+  duplicate: boolean;
 }
 
 function parseHttpUrl(value: string): URL | null {
@@ -90,7 +97,6 @@ export default function NewMeetingForm({
 }: {
   kind?: MeetingKind;
 }) {
-  const router = useRouter();
   const isCourse = kind === "course";
 
   // Courses are URL/upload videos, never Zoom — default to the Stream tab.
@@ -107,6 +113,7 @@ export default function NewMeetingForm({
   const [submitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
+  const [result, setResult] = useState<SubmitResult | null>(null);
 
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -242,10 +249,26 @@ export default function NewMeetingForm({
         );
       }
 
-      const meeting = (await res.json()) as Meeting;
-      setStatusMessage(`Meeting "${meeting.title}" added. Opening the dashboard…`);
-      router.push("/");
-      router.refresh();
+      // POST /api/meetings may return { duplicate: true, meeting } (200) when the
+      // source was already generated; otherwise the body is the new meeting.
+      const payload = (await res.json()) as
+        | Meeting
+        | { duplicate: boolean; meeting: Meeting };
+      const isDuplicate =
+        typeof payload === "object" &&
+        payload !== null &&
+        "duplicate" in payload;
+      const meeting = isDuplicate
+        ? (payload as { meeting: Meeting }).meeting
+        : (payload as Meeting);
+
+      setResult({ meeting, duplicate: isDuplicate });
+      setStatusMessage(
+        isDuplicate
+          ? "That source was already submitted. We found the existing item."
+          : "Submitted. It is pending review before it appears in the public library."
+      );
+      setSubmitting(false);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Something went wrong. Try again.";
@@ -256,6 +279,58 @@ export default function NewMeetingForm({
   }
 
   const activeTabConfig = TABS.find((t) => t.key === activeTab) ?? TABS[0];
+
+  function resetForSubmitAnother() {
+    setResult(null);
+    setStatusMessage("");
+    setServerError(null);
+    setErrors({});
+    setTitle("");
+    setBodyName("");
+    setZoomUrl("");
+    setStreamUrl("");
+    setFile(null);
+  }
+
+  // Post-submit confirmation. Public submissions are pending review (not on the
+  // public dashboard yet), so we confirm in place rather than redirecting.
+  if (result) {
+    const noun = isCourse ? "video" : "meeting";
+    return (
+      <div
+        role="status"
+        className="rounded-xl border border-line bg-surface p-6 shadow-sm sm:p-8"
+      >
+        <h2 className="text-2xl">
+          {result.duplicate
+            ? "Already submitted"
+            : isCourse
+              ? "Video submitted"
+              : "Meeting submitted"}
+        </h2>
+        <p className="mt-3 max-w-2xl text-ink-soft">
+          {result.duplicate
+            ? `That source was already submitted, so we did not process it again. Here is the existing ${noun}.`
+            : `Thanks. Your ${noun} "${result.meeting.title}" was submitted and is pending review. An admin approves submissions before they appear in the public library.`}
+        </p>
+        <div className="mt-6 flex flex-wrap items-center gap-4">
+          <Link
+            href={`/meetings/${result.meeting.id}`}
+            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-accent px-6 font-semibold text-white shadow-sm hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2"
+          >
+            {result.duplicate ? `View the existing ${noun}` : `View your ${noun}`}
+          </Link>
+          <button
+            type="button"
+            onClick={resetForSubmitAnother}
+            className="inline-flex min-h-11 items-center rounded-md border border-line-strong bg-surface px-6 font-semibold text-ink hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2"
+          >
+            Submit another
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form

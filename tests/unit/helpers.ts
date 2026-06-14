@@ -41,6 +41,7 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     captionFetchTimeoutMs: 60000,
     tickSecret: null,
     recallWebhookSecret: null,
+    ownerSecret: null,
     ...overrides,
   };
 }

@@ -32,6 +32,14 @@ export interface Meeting {
   schedule_id: string | null;
   /** Per-occurrence idempotency key (the fired next_fire_at); null off-schedule. */
   occurrence_key: string | null;
+  /** False until an admin approves it into the public library (Phase 0). */
+  published: boolean;
+  /** When it was published (null while unpublished). */
+  published_at: string | null;
+  /** Tenant isolation seed: nullable, defaults to a single tenant for now. */
+  tenant_id: string | null;
+  /** Normalized dedup key derived from source_url (null when no/odd source). */
+  source_key: string | null;
   created_at: string;
 }
 
@@ -46,6 +54,11 @@ export interface NewMeeting {
   audio_storage_path?: string | null;
   schedule_id?: string | null;
   occurrence_key?: string | null;
+  /** Optional on create: published defaults to false, tenant_id to null, and
+   *  source_key is computed from source_url when omitted. */
+  published?: boolean;
+  tenant_id?: string | null;
+  source_key?: string | null;
 }
 
 // --- Scheduled / recurring capture -----------------------------------------

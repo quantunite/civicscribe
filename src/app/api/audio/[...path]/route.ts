@@ -39,6 +39,12 @@ function parseRange(header: string, size: number): ByteRange | null {
  * GET /api/audio/<storage path> — streams stored meeting audio to the browser.
  * Serves full responses and 206 partial responses so <audio> seeking works
  * against both the local-disk and Supabase storage backends.
+ *
+ * TODO(published-boundary): this route serves by storage path, not meeting id,
+ * so an unpublished (pending-review) meeting's audio is still reachable by
+ * anyone who knows/guesses its path. Follow-up: resolve the owning meeting from
+ * the path and enforce the same not-published + not-admin -> 404 boundary the
+ * detail/export routes now apply.
  */
 export async function GET(
   request: Request,

@@ -94,11 +94,14 @@ test("full pipeline: upload, process, transcript, rename, search", async ({
 
     await page.getByRole("button", { name: /Add meeting/ }).click();
 
-    // Successful submit navigates back to the dashboard, which now lists the
-    // new meeting card.
-    await expect(page).toHaveURL(/\/$/);
+    // Public submissions are pending review, so the form confirms in place with
+    // a status card (and a link to the new item) rather than redirecting to the
+    // dashboard. The meeting id is derived from GET /api/meetings in the next step.
+    const confirmation = page.getByRole("status");
+    await expect(confirmation).toBeVisible();
+    await expect(confirmation).toContainText(/pending review/i);
     await expect(
-      page.getByRole("heading", { name: MEETING_TITLE })
+      confirmation.getByRole("link", { name: /View your meeting/i })
     ).toBeVisible();
   });
 

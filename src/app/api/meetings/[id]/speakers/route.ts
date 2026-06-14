@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getStore } from "@/lib/store";
+import { requireAdmin } from "@/lib/owner";
 
 const bodySchema = z.object({
   speaker_label: z
@@ -21,7 +22,10 @@ const bodySchema = z.object({
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
-): Promise<NextResponse> {
+): Promise<NextResponse | Response> {
+  const denied = requireAdmin(req);
+  if (denied) return denied;
+
   const { id } = await params;
 
   let body: unknown;
