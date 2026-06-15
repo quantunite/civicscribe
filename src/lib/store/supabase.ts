@@ -38,6 +38,9 @@ import {
   type TopicSummary,
   type TopicSynthesis,
   type Transcript,
+  type User,
+  type NewUser,
+  type UserRole,
   type Utterance,
   type UtteranceSearchResult,
 } from "@/lib/types";
@@ -85,6 +88,26 @@ interface ScheduleRow {
   next_fire_at: string;
   last_fired_at: string | null;
   created_at: string;
+}
+
+interface UserRow {
+  id: string;
+  email: string;
+  password_hash: string;
+  role: UserRole;
+  name: string | null;
+  created_at: string;
+}
+
+function mapUser(row: UserRow): User {
+  return {
+    id: row.id,
+    email: row.email,
+    password_hash: row.password_hash,
+    role: row.role,
+    name: row.name,
+    created_at: row.created_at,
+  };
 }
 
 interface TranscriptRow {
@@ -1074,6 +1097,50 @@ export class SupabaseStore implements DataStore {
       .order("next_fire_at", { ascending: true });
     if (error) fail("listDueSchedules", error);
     return ((data ?? []) as ScheduleRow[]).map(mapSchedule);
+  }
+
+  // -- users (auth) -----------------------------------------------------------
+  async getUserByEmail(email: string): Promise<User | null> {
+    const { data, error } = await this.client
+      .from("users")
+      .select("*")
+      .eq("email", email.trim().toLowerCase())
+      .maybeSingle();
+    if (error) fail("getUserByEmail", error);
+    return data ? mapUser(data as UserRow) : null;
+  }
+
+  async getUserById(id: string): Promise<User | null> {
+    const { data, error } = await this.client
+      .from("users")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) fail("getUserById", error);
+    return data ? mapUser(data as UserRow) : null;
+  }
+
+  async createUser(input: NewUser): Promise<User> {
+    const { data, error } = await this.client
+      .from("users")
+      .insert({
+        email: input.email.trim().toLowerCase(),
+        password_hash: input.password_hash,
+        role: input.role ?? "user",
+        name: input.name ?? null,
+      })
+      .select()
+      .single();
+    if (error) fail("createUser", error);
+    return mapUser(data as UserRow);
+  }
+
+  async countUsers(): Promise<number> {
+    const { count, error } = await this.client
+      .from("users")
+      .select("*", { count: "exact", head: true });
+    if (error) fail("countUsers", error);
+    return count ?? 0;
   }
 }
 

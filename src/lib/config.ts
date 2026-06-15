@@ -30,6 +30,14 @@ export interface AppConfig {
    *  open mode: the access layer is a complete no-op so dev + the test suite run
    *  unchanged. Set it to gate the admin surface for a public deploy. */
   ownerSecret: string | null;
+  /** Stateless session signing secret (HMAC). Null = auth disabled: the access
+   *  layer is a no-op so dev + the test suite run unchanged, exactly like
+   *  ownerSecret. Set it to turn per-user accounts on for a public deploy. */
+  sessionSecret: string | null;
+  /** First-admin bootstrap: when no users exist and BOTH are set, an admin is
+   *  seeded from these on demand (idempotent). */
+  bootstrapAdminEmail: string | null;
+  bootstrapAdminPassword: string | null;
   /** Cost/abuse guardrail: max public submissions (generate + upload) per
    *  client IP per UTC day. Admin is exempt. Default 20. */
   maxSubmitsPerIpPerDay: number;
@@ -82,6 +90,9 @@ export function getConfig(): AppConfig {
     tickSecret: env("TICK_SECRET"),
     recallWebhookSecret: env("RECALL_WEBHOOK_SECRET"),
     ownerSecret: env("OWNER_SECRET"),
+    sessionSecret: env("SESSION_SECRET"),
+    bootstrapAdminEmail: env("BOOTSTRAP_ADMIN_EMAIL"),
+    bootstrapAdminPassword: env("BOOTSTRAP_ADMIN_PASSWORD"),
     maxSubmitsPerIpPerDay: envPositiveInt("MAX_SUBMITS_PER_IP_PER_DAY", 20),
     maxSubmitsGlobalPerDay: envPositiveInt("MAX_SUBMITS_GLOBAL_PER_DAY", 200),
     maxUploadMb: envPositiveInt("MAX_UPLOAD_MB", 200),

@@ -37,6 +37,8 @@ import {
   type TopicSummary,
   type TopicSynthesis,
   type Transcript,
+  type User,
+  type NewUser,
   type Utterance,
   type UtteranceSearchResult,
 } from "@/lib/types";
@@ -57,6 +59,7 @@ interface DbShape {
   jobs: Job[];
   schedules: Schedule[];
   topic_syntheses: TopicSynthesis[];
+  users: User[];
 }
 
 function emptyDb(): DbShape {
@@ -69,6 +72,7 @@ function emptyDb(): DbShape {
     jobs: [],
     schedules: [],
     topic_syntheses: [],
+    users: [],
   };
 }
 
@@ -161,6 +165,7 @@ export class MemoryStore implements DataStore {
           recurrence: s.recurrence ?? null,
         })),
         topic_syntheses: asArray<TopicSynthesis>(rec.topic_syntheses),
+        users: asArray<User>(rec.users),
       };
     } catch {
       // Missing or corrupt file: start empty.
@@ -923,6 +928,53 @@ export class MemoryStore implements DataStore {
         .filter((s) => s.enabled && s.next_fire_at <= nowIso)
         .sort((a, b) => a.next_fire_at.localeCompare(b.next_fire_at));
       return clone(due);
+    });
+  }
+
+  // -- users (auth) -----------------------------------------------------------
+
+  getUserByEmail(email: string): Promise<User | null> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const norm = email.trim().toLowerCase();
+      const u = db.users.find((x) => x.email === norm);
+      return u ? clone(u) : null;
+    });
+  }
+
+  getUserById(id: string): Promise<User | null> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const u = db.users.find((x) => x.id === id);
+      return u ? clone(u) : null;
+    });
+  }
+
+  createUser(input: NewUser): Promise<User> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const norm = input.email.trim().toLowerCase();
+      if (db.users.some((x) => x.email === norm)) {
+        throw new Error(`User already exists: ${norm}`);
+      }
+      const user: User = {
+        id: randomUUID(),
+        email: norm,
+        password_hash: input.password_hash,
+        role: input.role ?? "user",
+        name: input.name ?? null,
+        created_at: now(),
+      };
+      db.users.push(user);
+      await this.persist();
+      return clone(user);
+    });
+  }
+
+  countUsers(): Promise<number> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      return db.users.length;
     });
   }
 }

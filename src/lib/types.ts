@@ -16,6 +16,29 @@ export type MeetingStatus =
   | "complete"
   | "failed";
 
+// -- users (auth) -----------------------------------------------------------
+/** Account roles. All three are defined now; only `admin` is issued in the
+ *  Phase 1 identity core. `moderator` and `user` are reserved for later phases
+ *  (staff roles + public signup). Mirrors the role union in lib/auth/session. */
+export type UserRole = "admin" | "moderator" | "user";
+
+export interface User {
+  id: string;
+  /** Stored lowercased; uniqueness enforced on lower(email). */
+  email: string;
+  password_hash: string;
+  role: UserRole;
+  name: string | null;
+  created_at: string;
+}
+
+export interface NewUser {
+  email: string;
+  password_hash: string;
+  role?: UserRole;
+  name?: string | null;
+}
+
 export interface Meeting {
   id: string;
   title: string;
