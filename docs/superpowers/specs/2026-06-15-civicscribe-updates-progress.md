@@ -24,12 +24,12 @@ This checklist is the durable work list for the autonomous build loop. Update it
 - [ ] edit UI + "before it starts" guard (`enabled && last_fired_at IS NULL && next_fire_at > now()`), reusing existing `ScheduleUpdate` / `updateSchedule()` / PATCH
 - [ ] admin/moderator edit any; per-user "edit own" deferred to public-accounts phase
 
-## 3. Instructional main page + cinematic civic landing (new request, 2026-06-15)
+## 3. Instructional main page + cinematic civic landing (DONE 2026-06-15)
 
-- [ ] home page (`src/app/page.tsx`) becomes a how-to-use-the-platform guide (what CivicScribe does, how to submit a Zoom/stream/upload, how scheduling works, where the archive/search live). Keep the archive reachable.
-- [ ] design it with the frontend-design (cinematic) skill: aesthetically striking but POLITICALLY APPROPRIATE / non-partisan civic tone (e.g., a realistic meeting/council-chamber scene, an American flag motif, government-civic palette). Tasteful, not campaign-y.
-- [ ] the home page also surfaces the sign-in entry (ties to the auth "Sign in" affordance).
-- [ ] signed-in users STILL see the instructional page: the home page stays the guide regardless of auth state (do not swap home for a dashboard on login). When signed in, show the admin/dashboard + sign-out via nav, but keep the instructional landing as home.
+- [x] home page (`src/app/page.tsx`) is now a how-to-use guide (3-step how-it-works, three capture sources, scheduling note) with the archive kept reachable below
+- [x] cinematic civic hero (navy council-chamber scene + restrained flag/star motif + gold hairline + parchment serif display), non-partisan; styles in globals.css `.home-*`. Motto: "We take the meeting, so you can do the great things you're meant to."
+- [x] inline staff sign-in (email+password `LoginForm`) embedded on the home page
+- [x] signed-in users STILL see the instructional page (role-aware panel, not a dashboard swap)
 
 ## 4. Deploy / "live" (handoff)
 
