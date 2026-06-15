@@ -184,6 +184,32 @@
     inset 0 -140px 170px -70px rgba(0, 0, 0, 0.6),
     inset 0 0 220px rgba(0, 0, 0, 0.32);
 }
+/* Generated cinematic hero photo + a left/bottom-weighted dark scrim so the
+   parchment headline and buttons stay legible over the image. */
+.home-hero__img {
+  object-fit: cover;
+  object-position: center 35%;
+  z-index: 0;
+}
+.home-hero__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(8, 14, 24, 0.94) 0%,
+      rgba(8, 14, 24, 0.72) 38%,
+      rgba(8, 14, 24, 0.34) 68%,
+      rgba(8, 14, 24, 0.52) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(8, 14, 24, 0.34) 0%,
+      rgba(8, 14, 24, 0.4) 55%,
+      rgba(8, 14, 24, 0.8) 100%
+    );
+}
 .home-hero__inner {
   position: relative;
   z-index: 1;

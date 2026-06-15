@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 import { getStore } from "@/lib/store";
 import MeetingList from "@/components/dashboard/MeetingList";
@@ -23,52 +24,16 @@ export default async function HomePage() {
       {/* Cinematic civic hero: a dignified, non-partisan council-chamber scene. */}
       <section className="home-hero">
         <div className="home-hero__scene" aria-hidden="true">
-          <svg
-            className="home-hero__flag"
-            viewBox="0 0 76 40"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <rect width="76" height="40" fill="#f4efe6" />
-            <rect y="0" width="76" height="5.71" fill="#8a2b34" />
-            <rect y="11.43" width="76" height="5.71" fill="#8a2b34" />
-            <rect y="22.86" width="76" height="5.71" fill="#8a2b34" />
-            <rect y="34.29" width="76" height="5.71" fill="#8a2b34" />
-            <rect width="30" height="22.86" fill="#16294a" />
-            <g fill="#f4efe6">
-              <circle cx="6" cy="5" r="1" />
-              <circle cx="15" cy="5" r="1" />
-              <circle cx="24" cy="5" r="1" />
-              <circle cx="10.5" cy="11.4" r="1" />
-              <circle cx="19.5" cy="11.4" r="1" />
-              <circle cx="6" cy="17.8" r="1" />
-              <circle cx="15" cy="17.8" r="1" />
-              <circle cx="24" cy="17.8" r="1" />
-            </g>
-          </svg>
-
-          <svg
-            className="home-hero__chamber"
-            viewBox="0 0 1200 220"
-            fill="none"
-            preserveAspectRatio="xMidYMax slice"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <g stroke="#f4efe6" strokeWidth="2" strokeLinejoin="round">
-              <path d="M120 215 Q600 150 1080 215" />
-              <path d="M170 215 Q600 168 1030 215" />
-              <path d="M220 215 Q600 186 980 215" />
-              <path d="M470 120 H730 V150 H470 Z" />
-              <path d="M585 92 H615 V120 H585 Z" />
-              <path d="M748 70 V150" />
-              <path d="M748 70 H784 V84 H748" />
-              <path d="M420 70 V150" />
-              <path d="M780 70 V150" />
-              <path d="M360 60 H840" />
-            </g>
-          </svg>
-
+          <Image
+            src="/hero/home-hero.jpg"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="home-hero__img"
+          />
           <div className="home-hero__grain" />
-          <div className="home-hero__vignette" />
+          <div className="home-hero__scrim" />
         </div>
 
         <div className="home-hero__inner">
