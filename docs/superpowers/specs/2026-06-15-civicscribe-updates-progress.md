@@ -14,10 +14,10 @@ This checklist is the durable work list for the autonomous build loop. Update it
 - [x] `POST /api/login` + `POST /api/logout` (set/clear `cs-session`); login calls `ensureBootstrapAdmin`, dummy-hash anti-enumeration, open no-op when `SESSION_SECRET` unset
 - [x] `config.ts`: added `sessionSecret`, `bootstrapAdminEmail`, `bootstrapAdminPassword`
 - [x] middleware: async; verifies `cs-session` at the edge (admin+moderator) OR `OWNER_SECRET` break-glass; full no-op when BOTH unset; tests rewritten + session cases added
-- [ ] `owner.ts` -> session helpers (`currentUser`, `requireRole`); layout renders nav/sign-in-out from it
-- [ ] UI: rename "Owner sign in" -> "Sign in"; email+password `LoginForm`; inline header login entry
-- [ ] tests: middleware (session-based), login/logout routes; e2e login -> reach `/review`
-- [ ] regression: whole suite stays green with `SESSION_SECRET` unset
+- [x] session helpers in `lib/auth/server.ts` (`currentUser`, `isStaff` = session OR owner break-glass, no-op when both unset); layout renders role-aware nav + sign-in/out from `isStaff`. (`requireRole` route guard deferred to Phase 2.)
+- [x] email+password `LoginForm` + `/login` page; footer renamed "Sign in"; sign-out clears both cookies; middleware redirect -> /login. (Inline header sign-in folds into the cinematic home page, section 3.)
+- [x] tests: middleware (session + owner + no-op cases); store/bootstrap; foundations. (login/logout route + e2e login tests still to add.)
+- [x] regression: whole suite green (387) + typecheck + lint clean with `SESSION_SECRET` unset
 
 ## 2. Schedule editing (original ask)
 

@@ -120,11 +120,11 @@ describe("middleware — OWNER_SECRET (break-glass) gating", () => {
     expect(isPassThrough(res)).toBe(true);
   });
 
-  it("redirects a gated page to /owner-login", async () => {
+  it("redirects a gated page to /login", async () => {
     process.env.OWNER_SECRET = SECRET;
     const res = await middleware(mk("/review"));
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/owner-login");
+    expect(res.headers.get("location")).toContain("/login");
   });
 
   it("allows the gated page with the correct cookie", async () => {

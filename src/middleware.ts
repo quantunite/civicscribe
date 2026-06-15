@@ -13,7 +13,7 @@
 // HARD INVARIANT: when BOTH SESSION_SECRET and OWNER_SECRET are unset the
 // middleware is a COMPLETE pass-through (no-op), so dev (MOCK_MODE) and the
 // whole test suite are unaffected. When either is set, the admin surface needs
-// a valid credential: /api/* -> 401 JSON, pages -> redirect to /owner-login.
+// a valid credential: /api/* -> 401 JSON, pages -> redirect to /login.
 // Public reads/search/export/audio and the public generate routes stay open.
 
 import { NextResponse } from "next/server";
@@ -149,7 +149,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   }
 
   const loginUrl = request.nextUrl.clone();
-  loginUrl.pathname = "/owner-login";
+  loginUrl.pathname = "/login";
   loginUrl.search = "";
   loginUrl.searchParams.set("next", pathname);
   return NextResponse.redirect(loginUrl);

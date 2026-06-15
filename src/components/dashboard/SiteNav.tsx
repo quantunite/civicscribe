@@ -36,11 +36,12 @@ export default function SiteNav({ isAdmin }: { isAdmin: boolean }) {
 
   async function signOut() {
     setOpen(false);
-    try {
-      await fetch("/api/owner-logout", { method: "POST" });
-    } catch {
-      // Best-effort: a failed network call still drops the client-side menu.
-    }
+    // Clear both the per-user session and the legacy owner break-glass cookie.
+    // Best-effort: a failed network call still drops the client-side menu.
+    await Promise.allSettled([
+      fetch("/api/logout", { method: "POST" }),
+      fetch("/api/owner-logout", { method: "POST" }),
+    ]);
     router.push("/");
     router.refresh();
   }

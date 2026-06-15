@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { cookies } from "next/headers";
 import Link from "next/link";
 import SiteNav from "@/components/dashboard/SiteNav";
 import { getConfig } from "@/lib/config";
-import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
+import { isStaff } from "@/lib/auth/server";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -56,8 +55,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
-  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
+  const isAdmin = await isStaff();
 
   return (
     <html lang="en">
@@ -103,10 +101,10 @@ export default async function RootLayout({
             </span>
             {!isAdmin && (
               <Link
-                href="/owner-login"
+                href="/login"
                 className="text-ink-soft underline-offset-4 hover:text-ink hover:underline"
               >
-                Owner sign in
+                Sign in
               </Link>
             )}
           </div>
