@@ -29,6 +29,8 @@ import type {
   Utterance,
   UtteranceSearchResult,
   MeetingSummaryContent,
+  User,
+  NewUser,
 } from "@/lib/types";
 
 export interface DataStore {
@@ -197,6 +199,15 @@ export interface DataStore {
   deleteSchedule(id: string): Promise<void>;
   /** Enabled schedules whose next_fire_at <= now, soonest fire first. */
   listDueSchedules(now: Date): Promise<Schedule[]>;
+
+  // -- users (auth) -----------------------------------------------------------
+  /** Look up a user by email (case-insensitive). Null when none. */
+  getUserByEmail(email: string): Promise<User | null>;
+  getUserById(id: string): Promise<User | null>;
+  /** Create a user. Email is normalized to lowercase; throws on a duplicate. */
+  createUser(input: NewUser): Promise<User>;
+  /** Total user count (used by the first-admin bootstrap). */
+  countUsers(): Promise<number>;
 }
 
 export interface FileStorage {

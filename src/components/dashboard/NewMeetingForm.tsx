@@ -4,14 +4,15 @@ import { useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import Link from "next/link";
 import type { Meeting, MeetingKind } from "@/lib/types";
+import { detectMeetingPlatform } from "@/lib/net/url";
 
 type TabKey = "zoom" | "stream" | "upload";
 
 const TABS: ReadonlyArray<{ key: TabKey; label: string; hint: string }> = [
   {
     key: "zoom",
-    label: "Zoom URL",
-    hint: "A bot joins the Zoom meeting and records the audio.",
+    label: "Video call",
+    hint: "A bot joins your Zoom, Teams, or Google Meet and records the audio.",
   },
   {
     key: "stream",
@@ -58,13 +59,6 @@ function parseHttpUrl(value: string): URL | null {
   } catch {
     return null;
   }
-}
-
-function isZoomUrl(value: string): boolean {
-  const url = parseHttpUrl(value);
-  if (!url) return false;
-  const host = url.hostname.toLowerCase();
-  return host === "zoom.us" || host.endsWith(".zoom.us");
 }
 
 function isAcceptableFile(file: File): boolean {
@@ -164,10 +158,10 @@ export default function NewMeetingForm({
     }
     if (activeTab === "zoom") {
       if (!zoomUrl.trim()) {
-        next.source = "Enter the Zoom meeting link.";
-      } else if (!isZoomUrl(zoomUrl)) {
+        next.source = "Enter the meeting link.";
+      } else if (!detectMeetingPlatform(zoomUrl)) {
         next.source =
-          "That doesn't look like a Zoom link. It should start with https:// and contain zoom.us.";
+          "That doesn't look like a Zoom, Teams, or Google Meet link. Use the https:// invite URL.";
       }
     } else if (activeTab === "stream") {
       if (!streamUrl.trim()) {
@@ -228,13 +222,19 @@ export default function NewMeetingForm({
         res = await fetch("/api/upload", { method: "POST", body: formData });
       } else {
         const sourceUrl = activeTab === "zoom" ? zoomUrl.trim() : streamUrl.trim();
+        // The "Video call" tab accepts Zoom/Teams/Meet; detect which so the
+        // server gets the precise platform (validated in validate() already).
+        const sourceType =
+          activeTab === "zoom"
+            ? detectMeetingPlatform(sourceUrl) ?? "zoom"
+            : "stream";
         res = await fetch("/api/meetings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: title.trim(),
             body_name: bodyName.trim(),
-            source_type: activeTab,
+            source_type: sourceType,
             kind,
             source_url: sourceUrl,
           }),
@@ -442,7 +442,7 @@ export default function NewMeetingForm({
           hidden={activeTab !== "zoom"}
         >
           <label htmlFor="zoom-url" className={labelClass}>
-            Zoom meeting link{" "}
+            Meeting link (Zoom, Teams, or Google Meet){" "}
             <span aria-hidden="true" className="text-red-700">*</span>
             <span className="sr-only">(required)</span>
           </label>
@@ -458,7 +458,7 @@ export default function NewMeetingForm({
             aria-describedby={
               activeTab === "zoom" && errors.source ? "error-source" : "hint-zoom"
             }
-            placeholder="https://us02web.zoom.us/j/1234567890"
+            placeholder="Paste a Zoom, Teams, or Google Meet link"
             className={inputClass}
           />
           {activeTab === "zoom" && errors.source ? (

@@ -6,7 +6,7 @@ import { getStore } from "@/lib/store";
 import { requireAdmin } from "@/lib/owner";
 import { enforceSubmitGuardrails } from "@/lib/guardrails";
 import { firstFireAfter } from "@/lib/schedule/recurrence";
-import { isInternalHost, isZoomHost, parseHttpUrl } from "@/lib/net/url";
+import { isInternalHost, meetingHostError, parseHttpUrl } from "@/lib/net/url";
 import type { Recurrence } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -38,7 +38,7 @@ const recurrenceSchema = z.discriminatedUnion("freq", [
  *  a real http(s) URL, a zoom.us host for zoom, and a public (non-internal) host
  *  for stream. Adds a zod issue on the source_url path when it fails. */
 function refineSourceUrl(
-  data: { source_type: "zoom" | "stream"; source_url: string },
+  data: { source_type: "zoom" | "teams" | "meet" | "stream"; source_url: string },
   ctx: z.RefinementCtx
 ): void {
   const url = parseHttpUrl(data.source_url);
@@ -50,20 +50,20 @@ function refineSourceUrl(
     });
     return;
   }
-  if (data.source_type === "zoom" && !isZoomHost(url.hostname)) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["source_url"],
-      message: "source_url must be a zoom.us meeting link",
-    });
-  }
-  if (data.source_type === "stream" && isInternalHost(url.hostname)) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["source_url"],
-      message:
-        "source_url must point at a public host: localhost and private/internal addresses are not allowed",
-    });
+  if (data.source_type === "stream") {
+    if (isInternalHost(url.hostname)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["source_url"],
+        message:
+          "source_url must point at a public host: localhost and private/internal addresses are not allowed",
+      });
+    }
+  } else {
+    const msg = meetingHostError(data.source_type, url);
+    if (msg) {
+      ctx.addIssue({ code: "custom", path: ["source_url"], message: msg });
+    }
   }
 }
 
@@ -72,7 +72,7 @@ const createScheduleSchema = z
     title: z.string().trim().min(1, "title is required").max(300),
     body_name: z.string().trim().min(1, "body_name is required").max(300),
     kind: z.enum(["civic", "course"]).optional(),
-    source_type: z.enum(["zoom", "stream"]),
+    source_type: z.enum(["zoom", "teams", "meet", "stream"]),
     source_url: z.string().trim().min(1, "source_url is required"),
     recurrence: recurrenceSchema,
     enabled: z.boolean().optional(),
@@ -95,7 +95,7 @@ const oneOffScheduleSchema = z
     title: z.string().trim().min(1, "title is required").max(300),
     body_name: z.string().trim().min(1, "body_name is required").max(300),
     kind: z.enum(["civic", "course"]).optional(),
-    source_type: z.enum(["zoom", "stream"]),
+    source_type: z.enum(["zoom", "teams", "meet", "stream"]),
     source_url: z.string().trim().min(1, "source_url is required"),
     next_fire_at: z.string().trim().min(1).optional(),
     scheduled_at: z.string().trim().min(1).optional(),

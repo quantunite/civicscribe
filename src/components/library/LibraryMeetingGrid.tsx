@@ -13,6 +13,8 @@ import { formatDate, formatDuration } from "@/components/dashboard/MeetingCard";
 
 const SOURCE_LABEL: Record<Meeting["source_type"], string> = {
   zoom: "Zoom capture",
+  teams: "Teams capture",
+  meet: "Google Meet capture",
   stream: "Stream capture",
   upload: "Uploaded file",
 };

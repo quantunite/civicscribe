@@ -1,31 +1,29 @@
 // Edge middleware: the access boundary for CivicScribe's ADMIN surface.
 //
-// EDGE-SAFE: this runs in the Next.js edge runtime, so it reads
-// process.env.OWNER_SECRET DIRECTLY and does NOT import getConfig, the store,
-// node:crypto, or any other Node-only module. The constant-time compare is a
-// small inline implementation (no node:crypto/timingSafeEqual on the edge).
+// EDGE-SAFE: runs in the Next.js edge runtime, so it reads process.env directly
+// and only imports the edge-safe session verifier (Web Crypto, no node:crypto,
+// no store). The owner-secret compare is a small inline constant-time impl.
 //
-// HARD INVARIANT: when OWNER_SECRET is unset the middleware is a COMPLETE
-// pass-through (no-op), so dev (MOCK_MODE) and the entire test suite are
-// unaffected.
+// Two credentials are accepted on the admin surface:
+//   1. cs-session: a per-user signed token { uid, role, exp }. Phase 1 lets any
+//      signed-in staff (admin or moderator) through the existing admin gates.
+//   2. cs-owner: the legacy shared OWNER_SECRET (kept as break-glass during the
+//      cutover to accounts; scripts still send it as a Bearer header).
 //
-// When set, the admin surface requires the cs-owner cookie OR an
-// Authorization: Bearer header:
-//   - /api/* -> 401 JSON
-//   - pages  -> redirect to /owner-login
-// Everything else (public GET reads, GET /api/search, export, /api/audio, and
-// the public generate routes POST /api/meetings + POST /api/upload) stays open.
-// The already-secret-gated /api/jobs/tick + /api/webhooks/recall are excluded
-// by the matcher.
+// HARD INVARIANT: when BOTH SESSION_SECRET and OWNER_SECRET are unset the
+// middleware is a COMPLETE pass-through (no-op), so dev (MOCK_MODE) and the
+// whole test suite are unaffected. When either is set, the admin surface needs
+// a valid credential: /api/* -> 401 JSON, pages -> redirect to /login.
+// Public reads/search/export/audio and the public generate routes stay open.
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { verifySession, SESSION_COOKIE } from "@/lib/auth/session";
+
 const OWNER_COOKIE = "cs-owner";
 
-/** Constant-time string compare (edge-safe; no node:crypto). Returns false on
- *  a length mismatch, then XOR-accumulates over the whole string so timing
- *  does not leak the position of the first differing byte. */
+/** Constant-time string compare (edge-safe; no node:crypto). */
 function safeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -46,7 +44,9 @@ function readCookie(cookieHeader: string | null, name: string): string | null {
   return null;
 }
 
-function hasValidCredential(request: NextRequest, secret: string): boolean {
+/** Legacy break-glass: the cs-owner cookie OR an Authorization: Bearer header
+ *  matching the shared OWNER_SECRET. */
+function hasValidOwnerCredential(request: NextRequest, secret: string): boolean {
   const cookie = readCookie(request.headers.get("cookie"), OWNER_COOKIE);
   if (cookie && safeEqual(cookie, secret)) return true;
 
@@ -60,19 +60,25 @@ function hasValidCredential(request: NextRequest, secret: string): boolean {
   return false;
 }
 
-/** Is this request on the admin surface (must be an admin to proceed)? Method
+/** Per-user session: a valid signed cs-session whose role clears the admin gate.
+ *  Phase 1 admits admin AND moderator (the admin/moderator split is Phase 2). */
+async function hasValidSession(
+  request: NextRequest,
+  sessionSecret: string
+): Promise<boolean> {
+  const cookie = readCookie(request.headers.get("cookie"), SESSION_COOKIE);
+  const payload = await verifySession(cookie, sessionSecret);
+  return !!payload && (payload.role === "admin" || payload.role === "moderator");
+}
+
+/** Is this request on the admin surface (must be authorized to proceed)? Method
  *  AND path matter: GET reads of the same paths are public. */
 function isAdminSurface(method: string, pathname: string): boolean {
   // --- gated pages (any method, normally GET navigations) ---
-  // NOTE: /meetings/new, /study-notes/new, and /schedules (+ /schedules/new) are
-  // deliberately PUBLIC. Generation is open-with-guardrails (the public submits
-  // a one-off capture; an admin later approves to publish), so the submit forms
-  // must stay reachable even when OWNER_SECRET is set. The mutating routes they
-  // call (POST /api/meetings, /api/upload, POST /api/schedules one-off) are also
-  // open; only manage/publish/recurring actions are gated.
-  const ADMIN_PAGES = [
-    "/review", // the moderation queue page
-  ];
+  // /meetings/new, /study-notes/new, /schedules (+ /schedules/new) are
+  // deliberately PUBLIC (generation is open-with-guardrails). Only manage /
+  // publish / recurring actions are gated.
+  const ADMIN_PAGES = ["/review"];
   for (const page of ADMIN_PAGES) {
     if (pathname === page || pathname.startsWith(`${page}/`)) return true;
   }
@@ -80,32 +86,27 @@ function isAdminSurface(method: string, pathname: string): boolean {
   // --- gated API routes (method specific) ---
 
   // POST /api/meetings/[id]/speakers, /publish, /unpublish; DELETE /api/meetings/[id]
-  // (but NOT POST /api/meetings, GET reads, or /export — those are public).
   if (pathname.startsWith("/api/meetings/")) {
-    const sub = pathname.slice("/api/meetings/".length); // "<id>" or "<id>/..."
+    const sub = pathname.slice("/api/meetings/".length);
     const slash = sub.indexOf("/");
     const tail = slash === -1 ? "" : sub.slice(slash + 1);
-    if (tail === "" && method === "DELETE") return true; // DELETE /api/meetings/[id]
+    if (tail === "" && method === "DELETE") return true;
     if (
       method === "POST" &&
       (tail === "speakers" || tail === "publish" || tail === "unpublish")
     ) {
       return true;
     }
-    return false; // GET detail, GET export, etc. stay public
+    return false;
   }
 
   // PATCH /api/utterances/[id]
-  if (
-    pathname.startsWith("/api/utterances/") &&
-    method === "PATCH"
-  ) {
+  if (pathname.startsWith("/api/utterances/") && method === "PATCH") {
     return true;
   }
 
-  // /api/schedules: POST PASSES THROUGH (the handler decides one-off-public vs
-  // recurring-admin; recurring is re-checked there via requireAdmin). GET list
-  // is public.
+  // /api/schedules: POST passes through (handler decides one-off-public vs
+  // recurring-admin). GET list is public.
   if (pathname === "/api/schedules") {
     return false;
   }
@@ -118,10 +119,12 @@ function isAdminSurface(method: string, pathname: string): boolean {
   return false;
 }
 
-export function middleware(request: NextRequest): NextResponse {
-  // No-op fast path: when OWNER_SECRET is unset the access layer is disabled.
-  const secret = process.env.OWNER_SECRET;
-  if (!secret || secret.trim() === "") {
+export async function middleware(request: NextRequest): Promise<NextResponse> {
+  const ownerSecret = process.env.OWNER_SECRET?.trim() ?? "";
+  const sessionSecret = process.env.SESSION_SECRET?.trim() ?? "";
+
+  // No-op fast path: when NEITHER gate is configured the access layer is off.
+  if (!ownerSecret && !sessionSecret) {
     return NextResponse.next();
   }
 
@@ -132,7 +135,11 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.next();
   }
 
-  if (hasValidCredential(request, secret)) {
+  const authorized =
+    (!!ownerSecret && hasValidOwnerCredential(request, ownerSecret)) ||
+    (!!sessionSecret && (await hasValidSession(request, sessionSecret)));
+
+  if (authorized) {
     return NextResponse.next();
   }
 
@@ -142,7 +149,7 @@ export function middleware(request: NextRequest): NextResponse {
   }
 
   const loginUrl = request.nextUrl.clone();
-  loginUrl.pathname = "/owner-login";
+  loginUrl.pathname = "/login";
   loginUrl.search = "";
   loginUrl.searchParams.set("next", pathname);
   return NextResponse.redirect(loginUrl);
@@ -150,8 +157,8 @@ export function middleware(request: NextRequest): NextResponse {
 
 // Precise matcher: only the namespaces that contain gated routes + the gated
 // pages. Method gating happens in middleware(). EXCLUDES /api/jobs/tick and
-// /api/webhooks/recall (already secret-gated), all static assets, and the rest
-// of the public site (which the function would pass through anyway).
+// /api/webhooks/recall (already secret-gated), the auth routes, all static
+// assets, and the rest of the public site.
 export const config = {
   matcher: [
     "/api/meetings/:path*",

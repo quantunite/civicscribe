@@ -2,7 +2,7 @@
 // supabase/migrations/ and are the contract shared by the store layer,
 // the job pipeline, the providers, and the UI.
 
-export type SourceType = "zoom" | "stream" | "upload";
+export type SourceType = "zoom" | "teams" | "meet" | "stream" | "upload";
 
 /** Civic meetings vs. Study Notes educational videos. Drives the
  *  summary prompt + section labels and which dashboard a meeting appears on. */
@@ -15,6 +15,29 @@ export type MeetingStatus =
   | "summarizing"
   | "complete"
   | "failed";
+
+// -- users (auth) -----------------------------------------------------------
+/** Account roles. All three are defined now; only `admin` is issued in the
+ *  Phase 1 identity core. `moderator` and `user` are reserved for later phases
+ *  (staff roles + public signup). Mirrors the role union in lib/auth/session. */
+export type UserRole = "admin" | "moderator" | "user";
+
+export interface User {
+  id: string;
+  /** Stored lowercased; uniqueness enforced on lower(email). */
+  email: string;
+  password_hash: string;
+  role: UserRole;
+  name: string | null;
+  created_at: string;
+}
+
+export interface NewUser {
+  email: string;
+  password_hash: string;
+  role?: UserRole;
+  name?: string | null;
+}
 
 export interface Meeting {
   id: string;
@@ -69,7 +92,7 @@ export interface NewMeeting {
 export type ScheduleSourceSpec = { type: "fixed_url"; url: string };
 
 /** Sources that can be auto-captured (upload cannot be scheduled). */
-export type ScheduledSourceType = "zoom" | "stream";
+export type ScheduledSourceType = "zoom" | "teams" | "meet" | "stream";
 
 /**
  * A structured recurrence. weekday is 0=Sunday..6=Saturday; time is local

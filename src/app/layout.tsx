@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { cookies } from "next/headers";
 import Link from "next/link";
 import SiteNav from "@/components/dashboard/SiteNav";
+import StaffSidebar from "@/components/dashboard/StaffSidebar";
 import { getConfig } from "@/lib/config";
-import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
+import { isStaff } from "@/lib/auth/server";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -47,70 +47,95 @@ export const metadata: Metadata = {
   },
 };
 
-// The nav (and the manage actions it gates) depend on the admin cookie, which
-// is read per request, so this layout is never statically cached.
+// Staff status is read per request (cookie), so the layout is never statically
+// cached. Signed-in staff get a left sidebar; the public gets the top bar.
 export const dynamic = "force-dynamic";
+
+const FOOTER_TEXT =
+  "CivicScribe: a personal archive of public meetings, built accessibility-first.";
 
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
-  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
+  const isAdmin = await isStaff();
 
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} flex min-h-screen flex-col antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
-        <header className="bg-primary text-white">
-          <div className="relative mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-            <Link
-              href="/"
-              className="inline-flex min-h-11 items-center gap-3 rounded-md text-xl font-bold tracking-tight text-white focus-visible:outline-white"
+
+        {isAdmin ? (
+          // Signed-in staff: left vertical sidebar (mobile drawer) + content.
+          <div className="flex min-h-screen flex-col md:flex-row">
+            <StaffSidebar />
+            <div className="flex min-h-screen flex-1 flex-col">
+              <main
+                id="main-content"
+                className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10"
+              >
+                {children}
+              </main>
+              <footer className="border-t border-line bg-surface">
+                <div className="mx-auto w-full max-w-6xl px-4 py-5 text-sm text-ink-soft sm:px-6">
+                  {FOOTER_TEXT}
+                </div>
+              </footer>
+            </div>
+          </div>
+        ) : (
+          // Public: top bar.
+          <div className="flex min-h-screen flex-col">
+            <header className="bg-primary text-white">
+              <div className="relative mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+                <Link
+                  href="/"
+                  className="inline-flex min-h-11 items-center gap-3 rounded-md text-xl font-bold tracking-tight text-white focus-visible:outline-white"
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="h-7 w-7 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {/* Simple civic dome mark */}
+                    <path d="M4 20h16" />
+                    <path d="M5 20v-7h14v7" />
+                    <path d="M7 13v7M12 13v7M17 13v7" />
+                    <path d="M5 13c0-3.9 3.1-7 7-7s7 3.1 7 7" />
+                    <path d="M12 6V3" />
+                  </svg>
+                  CivicScribe
+                </Link>
+                <SiteNav isAdmin={false} />
+              </div>
+            </header>
+            <main
+              id="main-content"
+              className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10"
             >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 24 24"
-                className="h-7 w-7 shrink-0"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                {/* Simple civic dome mark */}
-                <path d="M4 20h16" />
-                <path d="M5 20v-7h14v7" />
-                <path d="M7 13v7M12 13v7M17 13v7" />
-                <path d="M5 13c0-3.9 3.1-7 7-7s7 3.1 7 7" />
-                <path d="M12 6V3" />
-              </svg>
-              CivicScribe
-            </Link>
-            <SiteNav isAdmin={isAdmin} />
+              {children}
+            </main>
+            <footer className="border-t border-line bg-surface">
+              <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-5 text-sm text-ink-soft sm:px-6">
+                <span>{FOOTER_TEXT}</span>
+                <Link
+                  href="/login"
+                  className="text-ink-soft underline-offset-4 hover:text-ink hover:underline"
+                >
+                  Sign in
+                </Link>
+              </div>
+            </footer>
           </div>
-        </header>
-        <main id="main-content" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
-          {children}
-        </main>
-        <footer className="border-t border-line bg-surface">
-          <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-5 text-sm text-ink-soft sm:px-6">
-            <span>
-              CivicScribe: a personal archive of public meetings, built accessibility-first.
-            </span>
-            {!isAdmin && (
-              <Link
-                href="/owner-login"
-                className="text-ink-soft underline-offset-4 hover:text-ink hover:underline"
-              >
-                Owner sign in
-              </Link>
-            )}
-          </div>
-        </footer>
+        )}
       </body>
     </html>
   );
