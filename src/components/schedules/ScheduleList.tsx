@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import type { Schedule } from "@/lib/types";
@@ -147,6 +148,12 @@ export default function ScheduleList({
               </div>
               {isAdmin && (
                 <div className="flex shrink-0 gap-2">
+                  <Link
+                    href={`/schedules/${s.id}/edit`}
+                    className="inline-flex min-h-10 items-center rounded-md border border-line-strong bg-surface px-4 font-semibold text-ink hover:bg-primary-soft"
+                  >
+                    Edit
+                  </Link>
                   <button
                     type="button"
                     onClick={() => toggle(s)}

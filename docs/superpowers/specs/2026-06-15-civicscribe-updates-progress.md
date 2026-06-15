@@ -21,8 +21,8 @@ This checklist is the durable work list for the autonomous build loop. Update it
 
 ## 2. Schedule editing (original ask)
 
-- [ ] edit UI + "before it starts" guard (`enabled && last_fired_at IS NULL && next_fire_at > now()`), reusing existing `ScheduleUpdate` / `updateSchedule()` / PATCH
-- [ ] admin/moderator edit any; per-user "edit own" deferred to public-accounts phase
+- [x] edit UI (`/schedules/[id]/edit` page + `EditScheduleForm` + per-row Edit link) + PATCH extended for content edits (title/body/source URL/one-off time) guarded by `isScheduleEditable` (next fire still in the future); reuses `ScheduleUpdate`/`updateSchedule`. Guard unit-tested.
+- [x] staff (admin/moderator) edit any; per-user "edit own" deferred to the public-accounts phase (Phase 4)
 
 ## 3. Instructional main page + cinematic civic landing (DONE 2026-06-15)
 
