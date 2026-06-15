@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import type { Schedule } from "@/lib/types";
-import { isInternalHost, isZoomHost, parseHttpUrl } from "@/lib/net/url";
+import { isInternalHost, meetingHostError, parseHttpUrl } from "@/lib/net/url";
 
 const inputClass =
   "mt-2 block w-full rounded-md border border-line-strong bg-surface px-4 py-3 text-base text-ink shadow-sm placeholder:text-ink-soft/70";
@@ -65,8 +65,8 @@ export default function EditScheduleForm({ schedule }: { schedule: Schedule }) {
     const url = parseHttpUrl(sourceUrl.trim());
     if (!sourceUrl.trim()) next.sourceUrl = "Enter the source URL.";
     else if (!url) next.sourceUrl = "Enter a full http:// or https:// URL.";
-    else if (schedule.source_type === "zoom" && !isZoomHost(url.hostname))
-      next.sourceUrl = "Zoom sources must be a zoom.us link.";
+    else if (schedule.source_type !== "stream" && meetingHostError(schedule.source_type, url))
+      next.sourceUrl = "Use a valid link for this platform.";
     else if (schedule.source_type === "stream" && isInternalHost(url.hostname))
       next.sourceUrl = "Use a public host: private addresses aren't allowed.";
 
@@ -165,7 +165,7 @@ export default function EditScheduleForm({ schedule }: { schedule: Schedule }) {
 
       <div>
         <label htmlFor="edit-url" className={labelClass}>
-          {schedule.source_type === "zoom" ? "Zoom link" : "Stream / video URL"}
+          {schedule.source_type === "stream" ? "Stream / video URL" : "Meeting link"}
         </label>
         <input
           id="edit-url"

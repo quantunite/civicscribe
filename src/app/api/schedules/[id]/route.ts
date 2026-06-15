@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getStore } from "@/lib/store";
 import { requireAdmin } from "@/lib/owner";
 import { isScheduleEditable } from "@/lib/schedule/editable";
-import { isInternalHost, isZoomHost, parseHttpUrl } from "@/lib/net/url";
+import { isInternalHost, meetingHostError, parseHttpUrl } from "@/lib/net/url";
 import type { ScheduleUpdate } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -93,20 +93,21 @@ export async function PATCH(
           { status: 400 }
         );
       }
-      if (schedule.source_type === "zoom" && !isZoomHost(url.hostname)) {
-        return NextResponse.json(
-          { error: "source_url must be a zoom.us meeting link" },
-          { status: 400 }
-        );
-      }
-      if (schedule.source_type === "stream" && isInternalHost(url.hostname)) {
-        return NextResponse.json(
-          {
-            error:
-              "source_url must point at a public host: localhost and private addresses are not allowed",
-          },
-          { status: 400 }
-        );
+      if (schedule.source_type === "stream") {
+        if (isInternalHost(url.hostname)) {
+          return NextResponse.json(
+            {
+              error:
+                "source_url must point at a public host: localhost and private addresses are not allowed",
+            },
+            { status: 400 }
+          );
+        }
+      } else {
+        const msg = meetingHostError(schedule.source_type, url);
+        if (msg) {
+          return NextResponse.json({ error: msg }, { status: 400 });
+        }
       }
       update.source_spec = { type: "fixed_url", url: data.source_url };
     }

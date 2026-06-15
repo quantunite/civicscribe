@@ -4,8 +4,8 @@ import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
-import type { Recurrence, Schedule } from "@/lib/types";
-import { isInternalHost, isZoomHost, parseHttpUrl } from "@/lib/net/url";
+import type { Recurrence, ScheduledSourceType, Schedule } from "@/lib/types";
+import { isInternalHost, meetingHostError, parseHttpUrl } from "@/lib/net/url";
 
 interface FieldErrors {
   title?: string;
@@ -102,7 +102,7 @@ export default function NewScheduleForm({ isAdmin }: { isAdmin: boolean }) {
   const [title, setTitle] = useState("");
   const [bodyName, setBodyName] = useState("");
   const [kind, setKind] = useState<"civic" | "course">("civic");
-  const [sourceType, setSourceType] = useState<"zoom" | "stream">("stream");
+  const [sourceType, setSourceType] = useState<ScheduledSourceType>("stream");
   const [sourceUrl, setSourceUrl] = useState("");
 
   // One-off: the chosen future capture time. A datetime-local value carries no
@@ -139,9 +139,16 @@ export default function NewScheduleForm({ isAdmin }: { isAdmin: boolean }) {
       next.sourceUrl = "Enter the source URL.";
     } else if (!url) {
       next.sourceUrl = "Enter a full http:// or https:// URL.";
-    } else if (sourceType === "zoom" && !isZoomHost(url.hostname)) {
-      next.sourceUrl = "Zoom sources must be a zoom.us link.";
-    } else if (sourceType === "stream" && isInternalHost(url.hostname)) {
+    } else if (sourceType !== "stream") {
+      if (meetingHostError(sourceType, url)) {
+        next.sourceUrl =
+          sourceType === "zoom"
+            ? "Zoom sources must be a zoom.us link."
+            : sourceType === "teams"
+              ? "Teams sources must be a teams.microsoft.com link."
+              : "Google Meet sources must be a meet.google.com link.";
+      }
+    } else if (isInternalHost(url.hostname)) {
       next.sourceUrl =
         "Use a public host: localhost and private addresses aren't allowed.";
     }
@@ -364,12 +371,14 @@ export default function NewScheduleForm({ isAdmin }: { isAdmin: boolean }) {
             id="sched-source-type"
             value={sourceType}
             onChange={(e) =>
-              setSourceType(e.target.value as "zoom" | "stream")
+              setSourceType(e.target.value as ScheduledSourceType)
             }
             className={inputClass}
           >
             <option value="stream">Stream / video URL</option>
             <option value="zoom">Zoom link</option>
+            <option value="teams">Microsoft Teams</option>
+            <option value="meet">Google Meet</option>
           </select>
         </div>
         <div>
@@ -390,7 +399,7 @@ export default function NewScheduleForm({ isAdmin }: { isAdmin: boolean }) {
 
       <div>
         <label htmlFor="sched-url" className={labelClass}>
-          {sourceType === "zoom" ? "Recurring Zoom link" : "Stream / video URL"}
+          {sourceType === "stream" ? "Stream / video URL" : "Meeting link"}
           <RequiredMark />
         </label>
         <input
@@ -404,9 +413,13 @@ export default function NewScheduleForm({ isAdmin }: { isAdmin: boolean }) {
           aria-invalid={errors.sourceUrl ? true : undefined}
           aria-describedby={errors.sourceUrl ? "err-url" : "hint-url"}
           placeholder={
-            sourceType === "zoom"
-              ? "https://us02web.zoom.us/j/1234567890"
-              : "https://www.youtube.com/@city/live"
+            sourceType === "stream"
+              ? "https://www.youtube.com/@city/live"
+              : sourceType === "teams"
+                ? "https://teams.microsoft.com/l/meetup-join/..."
+                : sourceType === "meet"
+                  ? "https://meet.google.com/abc-defg-hij"
+                  : "https://us02web.zoom.us/j/1234567890"
           }
           className={inputClass}
         />

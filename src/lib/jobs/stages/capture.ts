@@ -1,6 +1,6 @@
 // Capture stage. Gets meeting audio into file storage by source_type:
 //  - upload: the file was placed in storage at creation time — pass-through.
-//  - zoom:   create a Recall.ai bot ONCE (the bot id is persisted in the job
+//  - zoom/teams/meet: create a Recall.ai bot ONCE (the bot id is persisted in the job
 //            payload so retries reuse it instead of sending duplicate bots
 //            into the meeting), then check its status once per tick. While
 //            the bot is still recording the stage throws JobNotReadyError so
@@ -17,8 +17,8 @@ import type { Providers } from "@/lib/providers/types";
 import { JobNotReadyError } from "@/lib/jobs/errors";
 import { persistTranscription } from "@/lib/jobs/persist-transcript";
 
-/** Give up on a Zoom bot whose recording never becomes ready. */
-const ZOOM_CAPTURE_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6 hours
+/** Give up on a meeting bot whose recording never becomes ready. */
+const BOT_CAPTURE_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 const EXT_BY_CONTENT_TYPE: Record<string, string> = {
   "audio/wav": "wav",
@@ -68,8 +68,10 @@ export async function handleCapture(
       }
       break;
     }
-    case "zoom": {
-      await captureZoom(job, meeting, store, files, providers);
+    case "zoom":
+    case "teams":
+    case "meet": {
+      await captureBot(job, meeting, store, files, providers);
       break;
     }
     case "stream": {
@@ -86,7 +88,7 @@ export async function handleCapture(
   await store.setMeetingStatus(meeting.id, "transcribing");
 }
 
-async function captureZoom(
+async function captureBot(
   job: Job,
   meeting: Meeting,
   store: DataStore,
@@ -94,7 +96,7 @@ async function captureZoom(
   providers: Providers
 ): Promise<void> {
   if (!meeting.source_url) {
-    throw new Error(`Zoom meeting ${meeting.id} has no source_url`);
+    throw new Error(`Meeting ${meeting.id} has no source_url`);
   }
 
   // Reuse the bot recorded in the job payload; create one only on the first
@@ -135,11 +137,11 @@ async function captureZoom(
     // Normal-Error timeout so standard retry/failure semantics apply once a
     // bot has been out for 6 hours without producing a recording.
     const createdAtMs = botCreatedAt ? Date.parse(botCreatedAt) : NaN;
-    if (!Number.isNaN(createdAtMs) && Date.now() - createdAtMs > ZOOM_CAPTURE_TIMEOUT_MS) {
-      throw new Error("zoom capture timed out after 6h");
+    if (!Number.isNaN(createdAtMs) && Date.now() - createdAtMs > BOT_CAPTURE_TIMEOUT_MS) {
+      throw new Error("meeting capture timed out after 6h");
     }
     await store.setMeetingStatus(meeting.id, "capturing");
-    throw new JobNotReadyError("zoom bot still recording");
+    throw new JobNotReadyError("bot still recording");
   }
 
   if (!bot.audioUrl) {

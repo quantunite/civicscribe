@@ -2,7 +2,7 @@
 // supabase/migrations/ and are the contract shared by the store layer,
 // the job pipeline, the providers, and the UI.
 
-export type SourceType = "zoom" | "stream" | "upload";
+export type SourceType = "zoom" | "teams" | "meet" | "stream" | "upload";
 
 /** Civic meetings vs. Study Notes educational videos. Drives the
  *  summary prompt + section labels and which dashboard a meeting appears on. */
@@ -92,7 +92,7 @@ export interface NewMeeting {
 export type ScheduleSourceSpec = { type: "fixed_url"; url: string };
 
 /** Sources that can be auto-captured (upload cannot be scheduled). */
-export type ScheduledSourceType = "zoom" | "stream";
+export type ScheduledSourceType = "zoom" | "teams" | "meet" | "stream";
 
 /**
  * A structured recurrence. weekday is 0=Sunday..6=Saturday; time is local

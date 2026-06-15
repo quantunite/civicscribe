@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getStore } from "@/lib/store";
 import { createAndEnqueueCapture } from "@/lib/meetings/create";
-import { isInternalHost, isZoomHost, parseHttpUrl } from "@/lib/net/url";
+import { isInternalHost, meetingHostError, parseHttpUrl } from "@/lib/net/url";
 import { sourceKey } from "@/lib/net/source-key";
 import { isAdminRequest } from "@/lib/owner";
 import { enforceSubmitGuardrails } from "@/lib/guardrails";
@@ -14,7 +14,7 @@ const createMeetingSchema = z
   .object({
     title: z.string().trim().min(1, "title is required").max(300),
     body_name: z.string().trim().min(1, "body_name is required").max(300),
-    source_type: z.enum(["zoom", "stream"]),
+    source_type: z.enum(["zoom", "teams", "meet", "stream"]),
     kind: z.enum(["civic", "course"]).optional(),
     source_url: z.string().trim().min(1, "source_url is required"),
   })
@@ -28,20 +28,20 @@ const createMeetingSchema = z
       });
       return;
     }
-    if (data.source_type === "zoom" && !isZoomHost(url.hostname)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["source_url"],
-        message: "source_url must be a zoom.us meeting link",
-      });
-    }
-    if (data.source_type === "stream" && isInternalHost(url.hostname)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["source_url"],
-        message:
-          "source_url must point at a public host: localhost and private/internal addresses are not allowed",
-      });
+    if (data.source_type === "stream") {
+      if (isInternalHost(url.hostname)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["source_url"],
+          message:
+            "source_url must point at a public host: localhost and private/internal addresses are not allowed",
+        });
+      }
+    } else {
+      const msg = meetingHostError(data.source_type, url);
+      if (msg) {
+        ctx.addIssue({ code: "custom", path: ["source_url"], message: msg });
+      }
     }
   });
 

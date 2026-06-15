@@ -7,6 +7,8 @@ import StatusBadge from "@/components/dashboard/StatusBadge";
 
 const SOURCE_LABEL: Record<Meeting["source_type"], string> = {
   zoom: "Zoom capture",
+  teams: "Teams capture",
+  meet: "Google Meet capture",
   stream: "Stream capture",
   upload: "Uploaded file",
 };

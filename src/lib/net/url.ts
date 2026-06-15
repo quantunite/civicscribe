@@ -15,6 +15,52 @@ export function isZoomHost(hostname: string): boolean {
   return host === "zoom.us" || host.endsWith(".zoom.us");
 }
 
+export function isTeamsHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return (
+    host === "teams.microsoft.com" ||
+    host.endsWith(".teams.microsoft.com") ||
+    host === "teams.live.com" ||
+    host.endsWith(".teams.live.com")
+  );
+}
+
+export function isMeetHost(hostname: string): boolean {
+  return hostname.toLowerCase() === "meet.google.com";
+}
+
+/** Bot-joinable video-meeting platforms: a Recall.ai bot joins all three. */
+export type MeetingPlatform = "zoom" | "teams" | "meet";
+
+/** Detect the meeting platform from a URL, or null if it is not a recognized
+ *  Zoom / Teams / Google Meet link. */
+export function detectMeetingPlatform(value: string): MeetingPlatform | null {
+  const url = parseHttpUrl(value);
+  if (!url) return null;
+  if (isZoomHost(url.hostname)) return "zoom";
+  if (isTeamsHost(url.hostname)) return "teams";
+  if (isMeetHost(url.hostname)) return "meet";
+  return null;
+}
+
+/** Validate that `url`'s host matches the expected platform for a bot source.
+ *  Returns an error message, or null when the host is valid. */
+export function meetingHostError(
+  sourceType: MeetingPlatform,
+  url: URL
+): string | null {
+  if (sourceType === "zoom" && !isZoomHost(url.hostname)) {
+    return "source_url must be a zoom.us meeting link";
+  }
+  if (sourceType === "teams" && !isTeamsHost(url.hostname)) {
+    return "source_url must be a Microsoft Teams meeting link (teams.microsoft.com or teams.live.com)";
+  }
+  if (sourceType === "meet" && !isMeetHost(url.hostname)) {
+    return "source_url must be a Google Meet link (meet.google.com)";
+  }
+  return null;
+}
+
 /**
  * Reject obviously-internal hosts for stream URLs (the server hands them to
  * yt-dlp, which will happily fetch them). A deliberate "obvious cases"
