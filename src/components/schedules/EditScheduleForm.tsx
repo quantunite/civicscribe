@@ -53,6 +53,8 @@ export default function EditScheduleForm({ schedule }: { schedule: Schedule }) {
   const [when, setWhen] = useState(
     schedule.one_off ? toLocalInput(schedule.next_fire_at) : ""
   );
+  // Live captions: bot sources only (zoom/teams/meet). Seed from the schedule.
+  const [liveEnabled, setLiveEnabled] = useState(schedule.live_enabled);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -97,6 +99,9 @@ export default function EditScheduleForm({ schedule }: { schedule: Schedule }) {
         source_url: sourceUrl.trim(),
       };
       if (schedule.one_off) payload.next_fire_at = new Date(when).toISOString();
+      // Live captions only apply to bot sources; the server ignores it for
+      // stream, so only send it when this schedule is a bot source.
+      if (schedule.source_type !== "stream") payload.live_enabled = liveEnabled;
 
       const res = await fetch(`/api/schedules/${schedule.id}`, {
         method: "PATCH",
@@ -186,6 +191,31 @@ export default function EditScheduleForm({ schedule }: { schedule: Schedule }) {
           change it, delete this schedule and create a new one.
         </p>
       </div>
+
+      {/* Live captions opt-in: bot sources only (zoom/teams/meet). */}
+      {schedule.source_type !== "stream" && (
+        <div className="rounded-md border border-line bg-primary-soft p-4">
+          <label
+            htmlFor="edit-live"
+            className="flex cursor-pointer items-start gap-3"
+          >
+            <input
+              id="edit-live"
+              type="checkbox"
+              checked={liveEnabled}
+              onChange={(e) => setLiveEnabled(e.target.checked)}
+              className="mt-1 h-5 w-5 cursor-pointer rounded border-line-strong text-accent"
+            />
+            <span>
+              <span className="font-semibold text-ink">Live captions</span>
+              <span className="mt-1 block text-sm text-ink-soft">
+                Stream a public live transcript anyone can follow while the
+                meeting happens.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
 
       {schedule.one_off ? (
         <div>

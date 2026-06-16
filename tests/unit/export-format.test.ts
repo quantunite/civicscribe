@@ -37,6 +37,9 @@ function meeting(over: Partial<Meeting> = {}): Meeting {
     published_at: null,
     tenant_id: null,
     source_key: null,
+    live_enabled: false,
+    live_started_at: null,
+    live_ended_at: null,
     created_at: "2026-06-13T10:00:00.000Z",
     ...over,
   };

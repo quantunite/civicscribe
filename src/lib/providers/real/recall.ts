@@ -119,21 +119,56 @@ export class RecallCaptureProvider implements CaptureProvider {
     return (await res.json()) as T;
   }
 
+  /** WEBHOOK_URL the real-time transcript events are delivered to. Mirrors the
+   *  shared-secret auth the webhook route enforces: when a secret is configured
+   *  the token rides as ?token=<secret> (url-encoded). */
+  private webhookUrl(): string {
+    const secret = this.config.recallWebhookSecret;
+    return (
+      `${this.config.baseUrl}/api/webhooks/recall` +
+      (secret ? `?token=${encodeURIComponent(secret)}` : "")
+    );
+  }
+
   async createBot(
     meetingUrl: string,
-    meetingId: string
+    meetingId: string,
+    opts?: { liveTranscription?: boolean }
   ): Promise<{ botId: string }> {
+    // Mixed-down single MP3 of the whole call — the simplest artifact to feed
+    // straight into transcription (the batch path, always on).
+    const recordingConfig: Record<string, unknown> = {
+      audio_mixed_mp3: {},
+    };
+
+    // Live captions: add Recall's built-in real-time transcription
+    // (recallai_streaming, no third-party STT key) delivering finalized
+    // transcript.data events to our webhook. Only when requested.
+    if (opts?.liveTranscription) {
+      recordingConfig.transcript = {
+        provider: {
+          recallai_streaming: {
+            mode: "prioritize_low_latency",
+            language_code: "en",
+          },
+        },
+      };
+      recordingConfig.realtime_endpoints = [
+        {
+          type: "webhook",
+          url: this.webhookUrl(),
+          events: ["transcript.data"],
+        },
+      ];
+    }
+
     const bot = await this.request<RecallBot>("/bot/", {
       method: "POST",
       body: {
         meeting_url: meetingUrl,
         bot_name: "CivicScribe",
         metadata: { civicscribe_meeting_id: meetingId },
-        // Mixed-down single MP3 of the whole call — the simplest artifact to
-        // feed straight into transcription.
-        recording_config: {
-          audio_mixed_mp3: {},
-        },
+        recording_config: recordingConfig,
       },
     });
 

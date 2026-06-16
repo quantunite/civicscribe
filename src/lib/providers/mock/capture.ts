@@ -16,8 +16,10 @@ export class MockCaptureProvider implements CaptureProvider {
 
   async createBot(
     meetingUrl: string,
-    meetingId: string
+    meetingId: string,
+    opts?: { liveTranscription?: boolean }
   ): Promise<{ botId: string }> {
+    void opts; // the mock ignores live transcription; bots still finish instantly
     const botId = `mock-bot-${meetingId}`;
     this.bots.set(botId, { meetingUrl, meetingId });
     return { botId };

@@ -102,6 +102,8 @@ export default function NewMeetingForm({
   const [zoomUrl, setZoomUrl] = useState("");
   const [streamUrl, setStreamUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  // Live captions: opt-in, bot sources (video call) only. Default off.
+  const [liveEnabled, setLiveEnabled] = useState(false);
 
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
@@ -237,6 +239,9 @@ export default function NewMeetingForm({
             source_type: sourceType,
             kind,
             source_url: sourceUrl,
+            // Live captions only apply to a video-call bot source. The server
+            // forces false for stream regardless, so it is safe to omit there.
+            ...(activeTab === "zoom" ? { live_enabled: liveEnabled } : {}),
           }),
         });
       }
@@ -290,6 +295,7 @@ export default function NewMeetingForm({
     setZoomUrl("");
     setStreamUrl("");
     setFile(null);
+    setLiveEnabled(false);
   }
 
   // Post-submit confirmation. Public submissions are pending review (not on the
@@ -471,6 +477,30 @@ export default function NewMeetingForm({
               meeting starts.
             </p>
           )}
+
+          {/* Live captions opt-in: video-call (bot) sources only, default off. */}
+          <div className="mt-4 rounded-md border border-line bg-primary-soft p-4">
+            <label
+              htmlFor="live-enabled"
+              className="flex cursor-pointer items-start gap-3"
+            >
+              <input
+                id="live-enabled"
+                name="live_enabled"
+                type="checkbox"
+                checked={liveEnabled}
+                onChange={(e) => setLiveEnabled(e.target.checked)}
+                className="mt-1 h-5 w-5 cursor-pointer rounded border-line-strong text-accent"
+              />
+              <span>
+                <span className="font-semibold text-ink">Live captions</span>
+                <span className="mt-1 block text-sm text-ink-soft">
+                  Stream a public live transcript anyone can follow while the
+                  meeting happens.
+                </span>
+              </span>
+            </label>
+          </div>
         </div>
 
         {/* Stream panel */}

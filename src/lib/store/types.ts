@@ -12,9 +12,11 @@
 import type {
   Job,
   JobType,
+  LiveUtterance,
   Meeting,
   MeetingKind,
   MeetingStatus,
+  NewLiveUtterance,
   NewMeeting,
   NewSchedule,
   NewUtterance,
@@ -69,6 +71,9 @@ export interface DataStore {
         | "audio_storage_path"
         | "duration_seconds"
         | "title"
+        | "live_enabled"
+        | "live_started_at"
+        | "live_ended_at"
       >
     >
   ): Promise<Meeting>;
@@ -112,6 +117,23 @@ export interface DataStore {
     speakerLabel: string,
     speakerName: string
   ): Promise<number>;
+
+  // -- live transcription (polling) -------------------------------------------
+  /** Append one finalized live-transcript line for a meeting; returns the row
+   *  (with its assigned id). */
+  appendLiveUtterance(
+    meetingId: string,
+    input: NewLiveUtterance
+  ): Promise<LiveUtterance>;
+  /** Live lines for a meeting, id ascending. When sinceId is given, only rows
+   *  with id > sinceId (the poll cursor). */
+  listLiveUtterances(
+    meetingId: string,
+    sinceId?: number
+  ): Promise<LiveUtterance[]>;
+  /** The public "Live now" feed: meetings with live_enabled === true AND status
+   *  === "capturing", newest first. */
+  listLiveMeetings(): Promise<Meeting[]>;
 
   // -- summaries --------------------------------------------------------------
   createSummary(

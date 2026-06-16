@@ -21,8 +21,14 @@ export type AudioSource =
 export type BotStatus = "joining" | "recording" | "done" | "failed";
 
 export interface CaptureProvider {
-  /** Create a bot that joins the given Zoom meeting URL. Returns the bot id. */
-  createBot(meetingUrl: string, meetingId: string): Promise<{ botId: string }>;
+  /** Create a bot that joins the given Zoom meeting URL. Returns the bot id.
+   *  When opts.liveTranscription is set the bot also streams a real-time
+   *  transcript to the Recall webhook (live captions). */
+  createBot(
+    meetingUrl: string,
+    meetingId: string,
+    opts?: { liveTranscription?: boolean }
+  ): Promise<{ botId: string }>;
   /** Poll bot state. When status is "done", audioUrl points at the recording. */
   getBotStatus(botId: string): Promise<{
     status: BotStatus;

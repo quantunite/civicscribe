@@ -76,6 +76,8 @@ const createScheduleSchema = z
     source_url: z.string().trim().min(1, "source_url is required"),
     recurrence: recurrenceSchema,
     enabled: z.boolean().optional(),
+    // Live captions opt-in (bot sources only; forced false for stream below).
+    live_enabled: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     refineSourceUrl(data, ctx);
@@ -99,6 +101,8 @@ const oneOffScheduleSchema = z
     source_url: z.string().trim().min(1, "source_url is required"),
     next_fire_at: z.string().trim().min(1).optional(),
     scheduled_at: z.string().trim().min(1).optional(),
+    // Live captions opt-in (bot sources only; forced false for stream below).
+    live_enabled: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     refineSourceUrl(data, ctx);
@@ -220,6 +224,9 @@ export async function POST(request: Request) {
         recurrence: null,
         one_off: true,
         next_fire_at,
+        // Live captions only apply to bot sources; force false for stream.
+        live_enabled:
+          data.source_type !== "stream" && data.live_enabled === true,
       });
       return NextResponse.json(schedule, { status: 201 });
     } catch (err) {
@@ -251,6 +258,9 @@ export async function POST(request: Request) {
         one_off: false,
         enabled: data.enabled,
         next_fire_at,
+        // Live captions only apply to bot sources; force false for stream.
+        live_enabled:
+          data.source_type !== "stream" && data.live_enabled === true,
       });
       return NextResponse.json(schedule, { status: 201 });
     } catch (err) {

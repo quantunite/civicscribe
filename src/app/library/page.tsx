@@ -10,6 +10,7 @@ import Link from "next/link";
 import { getStore } from "@/lib/store";
 import { Breadcrumbs } from "@/components/nav/Breadcrumbs";
 import { LibraryMeetingGrid } from "@/components/library/LibraryMeetingGrid";
+import { LiveNow } from "@/components/dashboard/LiveNow";
 
 // Published set + topic counts change as the admin curates, so always render
 // fresh rather than caching a stale library snapshot.
@@ -38,6 +39,10 @@ export default async function LibraryPage() {
           meeting; open any one for a full transcript and summary.
         </p>
       </div>
+
+      {/* Live now: meetings currently streaming public live captions. Renders
+          nothing when none is live. */}
+      <LiveNow />
 
       <section aria-labelledby="topics-cloud-heading">
         <h2 id="topics-cloud-heading" className="text-2xl">

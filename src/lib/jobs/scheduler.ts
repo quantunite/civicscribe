@@ -67,6 +67,8 @@ export async function sweepSchedules(
             source_url: url,
             schedule_id: schedule.id,
             occurrence_key: occurrenceKey,
+            // Materialized meetings inherit the schedule's live-captions toggle.
+            live_enabled: schedule.live_enabled,
           });
           result.meetingId = meeting.id;
         }

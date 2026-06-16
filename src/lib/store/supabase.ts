@@ -19,9 +19,11 @@ import {
   type Job,
   type JobStatus,
   type JobType,
+  type LiveUtterance,
   type Meeting,
   type MeetingStatus,
   type MeetingSummaryContent,
+  type NewLiveUtterance,
   type NewMeeting,
   type NewSchedule,
   type NewUtterance,
@@ -72,6 +74,9 @@ interface MeetingRow {
   published_at: string | null;
   tenant_id: string | null;
   source_key: string | null;
+  live_enabled: boolean;
+  live_started_at: string | null;
+  live_ended_at: string | null;
   created_at: string;
 }
 
@@ -87,6 +92,16 @@ interface ScheduleRow {
   enabled: boolean;
   next_fire_at: string;
   last_fired_at: string | null;
+  live_enabled: boolean;
+  created_at: string;
+}
+
+interface LiveUtteranceRow {
+  id: number;
+  meeting_id: string;
+  speaker_label: string | null;
+  text: string;
+  ts_seconds: number | null;
   created_at: string;
 }
 
@@ -202,6 +217,9 @@ function mapMeeting(row: MeetingRow): Meeting {
     published_at: row.published_at ?? null,
     tenant_id: row.tenant_id ?? null,
     source_key: row.source_key ?? null,
+    live_enabled: row.live_enabled ?? false,
+    live_started_at: row.live_started_at ?? null,
+    live_ended_at: row.live_ended_at ?? null,
     created_at: row.created_at,
   };
 }
@@ -219,6 +237,18 @@ function mapSchedule(row: ScheduleRow): Schedule {
     enabled: row.enabled,
     next_fire_at: row.next_fire_at,
     last_fired_at: row.last_fired_at,
+    live_enabled: row.live_enabled ?? false,
+    created_at: row.created_at,
+  };
+}
+
+function mapLiveUtterance(row: LiveUtteranceRow): LiveUtterance {
+  return {
+    id: row.id,
+    meeting_id: row.meeting_id,
+    speaker_label: row.speaker_label,
+    text: row.text,
+    ts_seconds: row.ts_seconds,
     created_at: row.created_at,
   };
 }
@@ -357,6 +387,9 @@ export class SupabaseStore implements DataStore {
         published: input.published ?? false,
         tenant_id: input.tenant_id ?? null,
         source_key: key,
+        // live_started_at / live_ended_at keep their null column defaults; they
+        // are set by the webhook (first line) and the capture stage (bot done).
+        live_enabled: input.live_enabled ?? false,
       })
       .select()
       .single();
@@ -495,6 +528,9 @@ export class SupabaseStore implements DataStore {
         | "audio_storage_path"
         | "duration_seconds"
         | "title"
+        | "live_enabled"
+        | "live_started_at"
+        | "live_ended_at"
       >
     >
   ): Promise<Meeting> {
@@ -507,6 +543,12 @@ export class SupabaseStore implements DataStore {
     if (patch.duration_seconds !== undefined)
       update.duration_seconds = patch.duration_seconds;
     if (patch.title !== undefined) update.title = patch.title;
+    if (patch.live_enabled !== undefined)
+      update.live_enabled = patch.live_enabled;
+    if (patch.live_started_at !== undefined)
+      update.live_started_at = patch.live_started_at;
+    if (patch.live_ended_at !== undefined)
+      update.live_ended_at = patch.live_ended_at;
 
     if (Object.keys(update).length === 0) {
       const existing = await this.getMeeting(id);
@@ -670,6 +712,63 @@ export class SupabaseStore implements DataStore {
       .select("id");
     if (error) fail("applySpeakerNameToLabel", error);
     return ((data ?? []) as Array<{ id: string }>).length;
+  }
+
+  // -- live transcription (polling) -------------------------------------------
+
+  async appendLiveUtterance(
+    meetingId: string,
+    input: NewLiveUtterance
+  ): Promise<LiveUtterance> {
+    const { data, error } = await this.client
+      .from("live_utterances")
+      .insert({
+        meeting_id: meetingId,
+        speaker_label: input.speaker_label ?? null,
+        text: input.text,
+        ts_seconds: input.ts_seconds ?? null,
+      })
+      .select()
+      .single();
+    if (error) fail("appendLiveUtterance", error);
+    return mapLiveUtterance(data as LiveUtteranceRow);
+  }
+
+  async listLiveUtterances(
+    meetingId: string,
+    sinceId?: number
+  ): Promise<LiveUtterance[]> {
+    // Page past PostgREST's default 1000-row cap: a long meeting easily exceeds
+    // it, and MemoryStore returns every row, so paging keeps the two at parity
+    // and lets the poll cursor advance to the true tail.
+    const PAGE = 1000;
+    const all: LiveUtterance[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      let query = this.client
+        .from("live_utterances")
+        .select("*")
+        .eq("meeting_id", meetingId)
+        .order("id", { ascending: true });
+      if (sinceId !== undefined) query = query.gt("id", sinceId);
+      const { data, error } = await query.range(offset, offset + PAGE - 1);
+      if (error) fail("listLiveUtterances", error);
+      const rows = (data ?? []) as LiveUtteranceRow[];
+      all.push(...rows.map(mapLiveUtterance));
+      if (rows.length < PAGE) break;
+    }
+    return all;
+  }
+
+  async listLiveMeetings(): Promise<Meeting[]> {
+    const { data, error } = await this.client
+      .from("meetings")
+      .select("*")
+      .eq("live_enabled", true)
+      .eq("status", "capturing")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+    if (error) fail("listLiveMeetings", error);
+    return ((data ?? []) as MeetingRow[]).map(mapMeeting);
   }
 
   // -- summaries --------------------------------------------------------------
@@ -1046,6 +1145,7 @@ export class SupabaseStore implements DataStore {
         one_off: input.one_off ?? false,
         enabled: input.enabled ?? true,
         next_fire_at: input.next_fire_at,
+        live_enabled: input.live_enabled ?? false,
       })
       .select()
       .single();

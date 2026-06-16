@@ -31,6 +31,9 @@ function meeting(overrides: Partial<Meeting> = {}): Meeting {
     published_at: "2026-06-13T00:00:00.000Z",
     tenant_id: null,
     source_key: null,
+    live_enabled: false,
+    live_started_at: null,
+    live_ended_at: null,
     created_at: "2026-06-12T00:00:00.000Z",
     ...overrides,
   };
