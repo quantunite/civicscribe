@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { getFileStorage, getStore } from "@/lib/store";
-import { isAdminRequest, requireAdmin } from "@/lib/owner";
+import { isStaffRequest, requireStaff } from "@/lib/owner";
 import type { MeetingDetail, Utterance } from "@/lib/types";
 
 export async function GET(
@@ -22,7 +22,7 @@ export async function GET(
   // Published boundary on the per-item read: an unpublished (pending-review)
   // meeting must not be reachable by direct UUID for the public. Return 404
   // (not 401) so its existence is not even confirmed. Admins get full detail.
-  if (!meeting.published && !isAdminRequest(req)) {
+  if (!meeting.published && !(await isStaffRequest(req))) {
     return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
   }
 
@@ -45,7 +45,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
-  const denied = requireAdmin(req);
+  const denied = await requireStaff(req);
   if (denied) return denied;
 
   const { id } = await params;

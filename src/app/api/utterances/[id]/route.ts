@@ -4,7 +4,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getStore } from "@/lib/store";
-import { requireAdmin } from "@/lib/owner";
+import { requireStaff } from "@/lib/owner";
 
 const patchSchema = z.object({
   speaker_name: z
@@ -17,7 +17,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse | Response> {
-  const denied = requireAdmin(req);
+  const denied = await requireStaff(req);
   if (denied) return denied;
 
   const { id } = await params;

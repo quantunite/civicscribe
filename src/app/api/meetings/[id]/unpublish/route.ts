@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { getStore } from "@/lib/store";
-import { requireAdmin } from "@/lib/owner";
+import { requireStaff } from "@/lib/owner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse | Response> {
-  const denied = requireAdmin(request);
+  const denied = await requireStaff(request);
   if (denied) return denied;
 
   const { id } = await params;

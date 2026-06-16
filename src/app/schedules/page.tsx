@@ -1,8 +1,7 @@
-import { cookies } from "next/headers";
 import Link from "next/link";
 
 import { getStore } from "@/lib/store";
-import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
+import { isStaff } from "@/lib/auth/server";
 import ScheduleList from "@/components/schedules/ScheduleList";
 
 // next_fire_at / last_fired_at advance as the sweep runs — render fresh.
@@ -15,8 +14,7 @@ export const metadata = {
 };
 
 export default async function SchedulesPage() {
-  const cookieStore = await cookies();
-  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
+  const isAdmin = await isStaff();
   const schedules = await getStore().listSchedules();
 
   return (

@@ -4,9 +4,8 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { getStore } from "@/lib/store";
-import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
+import { isStaff } from "@/lib/auth/server";
 import { Breadcrumbs } from "@/components/nav/Breadcrumbs";
 import type { UtteranceSearchResult } from "@/lib/types";
 import {
@@ -62,8 +61,7 @@ export default async function SearchPage({
 
   // Published boundary: the public search page returns published hits only.
   // An admin (cs-owner cookie) searches everything, including pending-review.
-  const cookieStore = await cookies();
-  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
+  const isAdmin = await isStaff();
 
   const results = q
     ? await getStore().searchUtterances(q, {

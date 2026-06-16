@@ -3,7 +3,7 @@ import { z } from "zod";
 import { IANAZone } from "luxon";
 
 import { getStore } from "@/lib/store";
-import { requireAdmin } from "@/lib/owner";
+import { requireStaff } from "@/lib/owner";
 import { enforceSubmitGuardrails } from "@/lib/guardrails";
 import { firstFireAfter } from "@/lib/schedule/recurrence";
 import { isInternalHost, meetingHostError, parseHttpUrl } from "@/lib/net/url";
@@ -231,7 +231,7 @@ export async function POST(request: Request) {
 
   if (isRecurring) {
     // ADMIN ONLY: a non-admin recurring POST is refused before any work.
-    const denied = requireAdmin(request);
+    const denied = await requireStaff(request);
     if (denied) return denied;
 
     const parsed = createScheduleSchema.safeParse(body);

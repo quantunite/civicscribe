@@ -14,6 +14,7 @@
 
 import { getConfig } from "@/lib/config";
 import { isAuthorized } from "@/lib/auth";
+import { SESSION_COOKIE, verifySession } from "@/lib/auth/session";
 
 /** Name of the admin session cookie (UI) — also the value the owner-login route
  *  sets and the logout route clears. */
@@ -89,5 +90,43 @@ export function isAdminCookie(cookieValue: string | null): boolean {
  */
 export function requireAdmin(request: Request): Response | null {
   if (isAdminRequest(request)) return null;
+  return Response.json({ error: "unauthorized" }, { status: 401 });
+}
+
+/**
+ * Request-context STAFF check: the OWNER_SECRET break-glass (cs-owner cookie or
+ * Authorization: Bearer, via isAdminRequest) OR a valid per-user cs-session whose
+ * role is admin/moderator. Reads both straight off the Request (no next/headers),
+ * so it behaves identically in route handlers and in unit tests. Async because
+ * session verification (HMAC via Web Crypto) is async.
+ *
+ * This is what API mutation/visibility guards should use now that real accounts
+ * exist: the legacy owner secret keeps working as break-glass, AND a signed-in
+ * admin/moderator is recognized. Mirrors the no-op invariant — isAdminRequest
+ * returns true for everyone when OWNER_SECRET is unset, so dev/MOCK_MODE stays
+ * fully open.
+ */
+export async function isStaffRequest(request: Request): Promise<boolean> {
+  if (isAdminRequest(request)) return true;
+
+  const secret = getConfig().sessionSecret;
+  if (!secret) return false;
+
+  const token = readCookie(request.headers.get("cookie"), SESSION_COOKIE);
+  const payload = await verifySession(token, secret);
+  return !!payload && (payload.role === "admin" || payload.role === "moderator");
+}
+
+/**
+ * Route-handler guard for STAFF, the session-aware counterpart to requireAdmin.
+ * Returns null when the request may proceed (admin/moderator session, owner
+ * break-glass, or open/no-op mode) and a 401 JSON Response otherwise.
+ *
+ * Usage at the top of a gated handler:
+ *   const denied = await requireStaff(request);
+ *   if (denied) return denied;
+ */
+export async function requireStaff(request: Request): Promise<Response | null> {
+  if (await isStaffRequest(request)) return null;
   return Response.json({ error: "unauthorized" }, { status: 401 });
 }
