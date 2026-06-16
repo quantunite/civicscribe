@@ -75,6 +75,8 @@ function meetingForGate(overrides: Partial<Meeting> = {}): Meeting {
     duration_seconds: null,
     schedule_id: null,
     occurrence_key: null,
+    attestation: null,
+    publish_requested_at: null,
     published: false,
     published_at: null,
     tenant_id: null,

@@ -21,6 +21,8 @@ function meeting(overrides: Partial<Meeting> = {}): Meeting {
     duration_seconds: 3600,
     schedule_id: null,
     occurrence_key: null,
+    attestation: null,
+    publish_requested_at: null,
     published: true,
     published_at: "2026-06-13T00:00:00.000Z",
     tenant_id: null,

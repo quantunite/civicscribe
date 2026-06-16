@@ -154,6 +154,9 @@ export class MemoryStore implements DataStore {
           occurrence_key: m.occurrence_key ?? null,
           published: m.published ?? false,
           published_at: m.published_at ?? null,
+          // Self-serve columns (migration 0014): null for legacy rows.
+          attestation: m.attestation ?? null,
+          publish_requested_at: m.publish_requested_at ?? null,
           tenant_id: m.tenant_id ?? null,
           // Back-fill the dedup key from the legacy source_url so old rows
           // dedup too; coalesce to null when there is nothing to derive.
@@ -263,6 +266,8 @@ export class MemoryStore implements DataStore {
         duration_seconds: null,
         schedule_id: input.schedule_id ?? null,
         occurrence_key: input.occurrence_key ?? null,
+        attestation: input.attestation ?? null,
+        publish_requested_at: null,
         published: input.published ?? false,
         published_at: null,
         tenant_id: input.tenant_id ?? null,
@@ -348,7 +353,12 @@ export class MemoryStore implements DataStore {
       const matches = db.meetings.filter(
         (m) => !m.published && m.status !== "failed"
       );
-      return this.sortNewestFirst(matches).map(clone);
+      // Submitter-requested items first (they asked to be added to the public
+      // record), then the rest; newest first within each group.
+      const byNewest = this.sortNewestFirst(matches);
+      const requested = byNewest.filter((m) => m.publish_requested_at !== null);
+      const rest = byNewest.filter((m) => m.publish_requested_at === null);
+      return [...requested, ...rest].map(clone);
     });
   }
 
@@ -392,6 +402,19 @@ export class MemoryStore implements DataStore {
     });
   }
 
+  requestPublish(meetingId: string): Promise<void> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const meeting = db.meetings.find((m) => m.id === meetingId);
+      if (!meeting) throw new Error(`Meeting not found: ${meetingId}`);
+      // Idempotent: keep the original timestamp once a request has been made.
+      if (meeting.publish_requested_at === null) {
+        meeting.publish_requested_at = now();
+        await this.persist();
+      }
+    });
+  }
+
   updateMeeting(
     id: string,
     patch: Partial<
@@ -408,6 +431,7 @@ export class MemoryStore implements DataStore {
         | "live_summary"
         | "live_summary_through_id"
         | "live_summary_at"
+        | "publish_requested_at"
       >
     >
   ): Promise<Meeting> {
@@ -435,6 +459,8 @@ export class MemoryStore implements DataStore {
         meeting.live_summary_through_id = patch.live_summary_through_id;
       if (patch.live_summary_at !== undefined)
         meeting.live_summary_at = patch.live_summary_at;
+      if (patch.publish_requested_at !== undefined)
+        meeting.publish_requested_at = patch.publish_requested_at;
       await this.persist();
       return clone(meeting);
     });

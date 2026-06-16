@@ -58,12 +58,19 @@ export default function ReviewQueue({ initial }: { initial: Meeting[] }) {
               className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-surface p-5 shadow-sm"
             >
               <div className="min-w-0">
-                <Link
-                  href={`/meetings/${m.id}`}
-                  className="text-lg font-semibold text-ink hover:text-accent"
-                >
-                  {m.title}
-                </Link>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/meetings/${m.id}`}
+                    className="text-lg font-semibold text-ink hover:text-accent"
+                  >
+                    {m.title}
+                  </Link>
+                  {m.publish_requested_at && (
+                    <span className="inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent-strong">
+                      Submitter requested
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-ink-soft">
                   {m.body_name} (added {formatDate(m.created_at)})
                 </p>

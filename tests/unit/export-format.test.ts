@@ -33,6 +33,8 @@ function meeting(over: Partial<Meeting> = {}): Meeting {
     duration_seconds: 65,
     schedule_id: null,
     occurrence_key: null,
+    attestation: null,
+    publish_requested_at: null,
     published: false,
     published_at: null,
     tenant_id: null,

@@ -21,6 +21,7 @@ import {
   type JobType,
   type LiveUtterance,
   type Meeting,
+  type MeetingAttestation,
   type MeetingStatus,
   type MeetingSummaryContent,
   type NewLiveUtterance,
@@ -70,6 +71,8 @@ interface MeetingRow {
   duration_seconds: number | null;
   schedule_id: string | null;
   occurrence_key: string | null;
+  attestation: MeetingAttestation | null;
+  publish_requested_at: string | null;
   published: boolean;
   published_at: string | null;
   tenant_id: string | null;
@@ -216,6 +219,8 @@ function mapMeeting(row: MeetingRow): Meeting {
     duration_seconds: row.duration_seconds,
     schedule_id: row.schedule_id ?? null,
     occurrence_key: row.occurrence_key ?? null,
+    attestation: row.attestation ?? null,
+    publish_requested_at: row.publish_requested_at ?? null,
     published: row.published ?? false,
     published_at: row.published_at ?? null,
     tenant_id: row.tenant_id ?? null,
@@ -388,6 +393,10 @@ export class SupabaseStore implements DataStore {
         audio_storage_path: input.audio_storage_path ?? null,
         schedule_id: input.schedule_id ?? null,
         occurrence_key: input.occurrence_key ?? null,
+        // attestation = the submitter's lawful basis (null for server-seeded /
+        // scheduled rows). publish_requested_at keeps its null column default
+        // until the submitter asks to add it to the public record.
+        attestation: input.attestation ?? null,
         // published / published_at / tenant_id keep their column defaults
         // (false / null / null) unless an admin promotes the row later.
         published: input.published ?? false,
@@ -469,10 +478,13 @@ export class SupabaseStore implements DataStore {
     const { data, error } = await this.client
       .from("meetings")
       .select("*")
-      // Secondary order by id keeps created_at ties deterministic, matching
-      // MemoryStore's insertion-order tiebreak.
+      // Submitter-requested items first (publish_requested_at not null sorts
+      // ahead of null with nullsFirst:false), then newest first. Secondary
+      // order by id keeps created_at ties deterministic, matching MemoryStore's
+      // insertion-order tiebreak.
       .eq("published", false)
       .neq("status", "failed")
+      .order("publish_requested_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
     if (error) fail("listPendingReview", error);
@@ -526,6 +538,24 @@ export class SupabaseStore implements DataStore {
     return mapMeeting(data as MeetingRow);
   }
 
+  async requestPublish(meetingId: string): Promise<void> {
+    // Idempotent: only set publish_requested_at when it is currently null, so a
+    // second request keeps the original timestamp. Read first (cheap, low
+    // volume) so an already-requested row is a no-op write.
+    const existing = await this.getMeeting(meetingId);
+    if (!existing) throw new Error(`Meeting not found: ${meetingId}`);
+    if (existing.publish_requested_at !== null) return;
+
+    const { error } = await this.client
+      .from("meetings")
+      .update({ publish_requested_at: new Date().toISOString() })
+      .eq("id", meetingId)
+      // Guard against a concurrent request racing in between the read and the
+      // write: only the first writer (where it is still null) sets it.
+      .is("publish_requested_at", null);
+    if (error) fail("requestPublish", error);
+  }
+
   async updateMeeting(
     id: string,
     patch: Partial<
@@ -542,6 +572,7 @@ export class SupabaseStore implements DataStore {
         | "live_summary"
         | "live_summary_through_id"
         | "live_summary_at"
+        | "publish_requested_at"
       >
     >
   ): Promise<Meeting> {
@@ -566,6 +597,8 @@ export class SupabaseStore implements DataStore {
       update.live_summary_through_id = patch.live_summary_through_id;
     if (patch.live_summary_at !== undefined)
       update.live_summary_at = patch.live_summary_at;
+    if (patch.publish_requested_at !== undefined)
+      update.publish_requested_at = patch.publish_requested_at;
 
     if (Object.keys(update).length === 0) {
       const existing = await this.getMeeting(id);

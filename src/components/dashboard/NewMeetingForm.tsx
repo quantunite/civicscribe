@@ -2,8 +2,8 @@
 
 import { useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
-import Link from "next/link";
-import type { Meeting, MeetingKind } from "@/lib/types";
+import { useRouter } from "next/navigation";
+import type { Meeting, MeetingAttestation, MeetingKind } from "@/lib/types";
 import { detectMeetingPlatform } from "@/lib/net/url";
 
 type TabKey = "zoom" | "stream" | "upload";
@@ -43,13 +43,14 @@ interface FieldErrors {
   title?: string;
   bodyName?: string;
   source?: string;
+  attestation?: string;
 }
 
-/** Outcome of a successful submit: a freshly-created (pending review) item, or
- *  an already-existing one the dedup check surfaced. */
-interface SubmitResult {
-  meeting: Meeting;
-  duplicate: boolean;
+/** Outcome the form shows in place. A fresh create navigates away to the
+ *  self-serve result page instead, so the only thing rendered in place is the
+ *  neutral "already submitted" acknowledgement after a dedup hit. */
+interface DuplicateResult {
+  duplicate: true;
 }
 
 function parseHttpUrl(value: string): URL | null {
@@ -92,6 +93,7 @@ export default function NewMeetingForm({
   kind?: MeetingKind;
 }) {
   const isCourse = kind === "course";
+  const router = useRouter();
 
   // Courses are URL/upload videos, never Zoom — default to the Stream tab.
   const [activeTab, setActiveTab] = useState<TabKey>(
@@ -104,12 +106,16 @@ export default function NewMeetingForm({
   const [file, setFile] = useState<File | null>(null);
   // Live captions: opt-in, bot sources (video call) only. Default off.
   const [liveEnabled, setLiveEnabled] = useState(false);
+  // Required lawful-basis attestation. Null until the submitter chooses one.
+  const [attestation, setAttestation] = useState<MeetingAttestation | null>(
+    null
+  );
 
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
-  const [result, setResult] = useState<SubmitResult | null>(null);
+  const [result, setResult] = useState<DuplicateResult | null>(null);
 
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -117,6 +123,7 @@ export default function NewMeetingForm({
   const zoomRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const attestationRef = useRef<HTMLInputElement>(null);
 
   function selectTab(key: TabKey) {
     setActiveTab(key);
@@ -179,6 +186,9 @@ export default function NewMeetingForm({
           "That file type isn't supported. Use an audio or video file such as .mp3, .m4a, .wav, or .mp4.";
       }
     }
+    if (attestation === null) {
+      next.attestation = "Choose the basis for adding this recording.";
+    }
     return next;
   }
 
@@ -191,6 +201,8 @@ export default function NewMeetingForm({
       if (activeTab === "zoom") zoomRef.current?.focus();
       else if (activeTab === "stream") streamRef.current?.focus();
       else fileRef.current?.focus();
+    } else if (next.attestation) {
+      attestationRef.current?.focus();
     }
   }
 
@@ -200,7 +212,12 @@ export default function NewMeetingForm({
 
     const nextErrors = validate();
     setErrors(nextErrors);
-    if (nextErrors.title || nextErrors.bodyName || nextErrors.source) {
+    if (
+      nextErrors.title ||
+      nextErrors.bodyName ||
+      nextErrors.source ||
+      nextErrors.attestation
+    ) {
       setStatusMessage("The form has errors. Fix the highlighted fields.");
       focusFirstError(nextErrors);
       return;
@@ -214,12 +231,15 @@ export default function NewMeetingForm({
     );
 
     try {
+      // attestation is non-null here (validate() blocked submit otherwise).
+      const attestationValue = attestation as MeetingAttestation;
       let res: Response;
       if (activeTab === "upload") {
         const formData = new FormData();
         formData.set("title", title.trim());
         formData.set("body_name", bodyName.trim());
         formData.set("kind", kind);
+        formData.set("attestation", attestationValue);
         if (file) formData.set("file", file);
         res = await fetch("/api/upload", { method: "POST", body: formData });
       } else {
@@ -239,6 +259,7 @@ export default function NewMeetingForm({
             source_type: sourceType,
             kind,
             source_url: sourceUrl,
+            attestation: attestationValue,
             // Live captions only apply to a video-call bot source. The server
             // forces false for stream regardless, so it is safe to omit there.
             ...(activeTab === "zoom" ? { live_enabled: liveEnabled } : {}),
@@ -254,26 +275,46 @@ export default function NewMeetingForm({
         );
       }
 
-      // POST /api/meetings may return { duplicate: true, meeting } (200) when the
-      // source was already generated; otherwise the body is the new meeting.
+      // A genuine new create returns 201 with { ...meeting, viewToken }. A dedup
+      // hit returns 200 with { duplicate: true } and NO id/token (non-staff). We
+      // must not assume `meeting` is present on the dedup shape.
       const payload = (await res.json()) as
-        | Meeting
-        | { duplicate: boolean; meeting: Meeting };
-      const isDuplicate =
+        | (Meeting & { viewToken: string | null })
+        | { duplicate: true; message?: string };
+
+      if (
         typeof payload === "object" &&
         payload !== null &&
-        "duplicate" in payload;
-      const meeting = isDuplicate
-        ? (payload as { meeting: Meeting }).meeting
-        : (payload as Meeting);
+        "duplicate" in payload
+      ) {
+        // Neutral acknowledgement: no id is handed back, so we cannot (and must
+        // not) open a private preview for a meeting this caller did not create.
+        setResult({ duplicate: true });
+        setStatusMessage(
+          "This meeting was already submitted. It will appear in the public library once staff approve it."
+        );
+        setSubmitting(false);
+        return;
+      }
 
-      setResult({ meeting, duplicate: isDuplicate });
-      setStatusMessage(
-        isDuplicate
-          ? "That source was already submitted. We found the existing item."
-          : "Submitted. It is pending review before it appears in the public library."
-      );
-      setSubmitting(false);
+      // Fresh create: stash the single-meeting view token in this tab's
+      // sessionStorage (keyed by id, never in the URL) and go to the private,
+      // view-only result page. In open mode viewToken is null; the result page's
+      // detail read is open then, so storing null is harmless.
+      const created = payload;
+      try {
+        if (created.viewToken) {
+          window.sessionStorage.setItem(
+            `cs-view:${created.id}`,
+            created.viewToken
+          );
+        }
+      } catch {
+        // sessionStorage can be unavailable (private mode); the result page
+        // degrades to its "preview not available" copy.
+      }
+      setStatusMessage("Submitted. Opening your private preview…");
+      router.push(`/meetings/${created.id}/result`);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Something went wrong. Try again.";
@@ -296,10 +337,13 @@ export default function NewMeetingForm({
     setStreamUrl("");
     setFile(null);
     setLiveEnabled(false);
+    setAttestation(null);
   }
 
-  // Post-submit confirmation. Public submissions are pending review (not on the
-  // public dashboard yet), so we confirm in place rather than redirecting.
+  // A fresh create navigates to the private result page. The only in-place
+  // confirmation is the neutral "already submitted" acknowledgement after a
+  // dedup hit: we deliberately do NOT link to the existing item (no id is
+  // returned, and the submitter of a duplicate did not create that record).
   if (result) {
     const noun = isCourse ? "video" : "meeting";
     return (
@@ -307,25 +351,12 @@ export default function NewMeetingForm({
         role="status"
         className="rounded-xl border border-line bg-surface p-6 shadow-sm sm:p-8"
       >
-        <h2 className="text-2xl">
-          {result.duplicate
-            ? "Already submitted"
-            : isCourse
-              ? "Video submitted"
-              : "Meeting submitted"}
-        </h2>
+        <h2 className="text-2xl">Already submitted</h2>
         <p className="mt-3 max-w-2xl text-ink-soft">
-          {result.duplicate
-            ? `That source was already submitted, so we did not process it again. Here is the existing ${noun}.`
-            : `Thanks. Your ${noun} "${result.meeting.title}" was submitted and is pending review. An admin approves submissions before they appear in the public library.`}
+          This {noun} was already submitted, so we did not process it again. It
+          will appear in the public library once staff approve it.
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-4">
-          <Link
-            href={`/meetings/${result.meeting.id}`}
-            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-accent px-6 font-semibold text-white shadow-sm hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2"
-          >
-            {result.duplicate ? `View the existing ${noun}` : `View your ${noun}`}
-          </Link>
           <button
             type="button"
             onClick={resetForSubmitAnother}
@@ -587,6 +618,68 @@ export default function NewMeetingForm({
         </div>
       </div>
 
+      {/* Lawful-basis attestation (required). One of two bases must be chosen
+          before this can be submitted. */}
+      <fieldset
+        className="mt-6 rounded-md border border-line bg-primary-soft p-4"
+        aria-describedby={
+          errors.attestation ? "error-attestation" : "hint-attestation"
+        }
+      >
+        <legend className="px-1 font-semibold text-ink">
+          Basis for adding this recording{" "}
+          <span aria-hidden="true" className="text-red-700">
+            *
+          </span>
+          <span className="sr-only">(required)</span>
+        </legend>
+        <div className="mt-2 flex flex-col gap-3">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              ref={attestationRef}
+              type="radio"
+              name="attestation"
+              value="public"
+              checked={attestation === "public"}
+              onChange={() => {
+                setAttestation("public");
+                setErrors((prev) => ({ ...prev, attestation: undefined }));
+              }}
+              className="mt-1 h-5 w-5 cursor-pointer border-line-strong text-accent"
+            />
+            <span className="text-ink">
+              This is an open meeting of a public body.
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="radio"
+              name="attestation"
+              value="authorized"
+              checked={attestation === "authorized"}
+              onChange={() => {
+                setAttestation("authorized");
+                setErrors((prev) => ({ ...prev, attestation: undefined }));
+              }}
+              className="mt-1 h-5 w-5 cursor-pointer border-line-strong text-accent"
+            />
+            <span className="text-ink">
+              I have explicit authority to record this meeting and add it to the
+              public library.
+            </span>
+          </label>
+        </div>
+        {errors.attestation ? (
+          <p id="error-attestation" role="alert" className={errorClass}>
+            {errors.attestation}
+          </p>
+        ) : (
+          <p id="hint-attestation" className="mt-2 text-sm text-ink-soft">
+            We record the basis you choose. Pick one to continue.
+          </p>
+        )}
+      </fieldset>
+
       {/* Server-side failure */}
       {serverError && (
         <p
@@ -600,7 +693,7 @@ export default function NewMeetingForm({
       <div className="mt-8 flex flex-wrap items-center gap-4">
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || attestation === null}
           className="inline-flex min-h-12 items-center gap-2 rounded-md bg-accent px-7 text-lg font-semibold text-white shadow-sm hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? "Adding meeting…" : "Add meeting"}

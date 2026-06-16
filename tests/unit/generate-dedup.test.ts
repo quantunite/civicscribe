@@ -54,6 +54,7 @@ describe("POST /api/meetings — public generate + dedup", () => {
         body_name: "City Council",
         source_type: "stream",
         source_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        attestation: "public",
       })
     );
     expect(res.status).toBe(201);
@@ -72,6 +73,7 @@ describe("POST /api/meetings — public generate + dedup", () => {
         body_name: "City Council",
         source_type: "stream",
         source_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        attestation: "public",
       })
     );
     const firstBody = await first.json();
@@ -83,11 +85,14 @@ describe("POST /api/meetings — public generate + dedup", () => {
         body_name: "City Council",
         source_type: "stream",
         source_url: "https://youtu.be/dQw4w9WgXcQ?si=tracking",
+        attestation: "public",
       })
     );
     expect(second.status).toBe(200);
     const secondBody = await second.json();
     expect(secondBody.duplicate).toBe(true);
+    // No secrets set in this suite => open mode => the caller is treated as
+    // staff, so the dedup path returns the existing meeting for convenience.
     expect(secondBody.meeting.id).toBe(firstBody.id);
 
     // And it must NOT have created a second meeting.
@@ -126,6 +131,7 @@ describe("POST /api/upload — public generate, pending review", () => {
     const form = new FormData();
     form.set("title", "Uploaded session");
     form.set("body_name", "City Council");
+    form.set("attestation", "public");
     form.set(
       "file",
       new File([new Uint8Array([1, 2, 3, 4])], "clip.mp3", {

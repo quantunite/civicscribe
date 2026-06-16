@@ -8,6 +8,13 @@ export type SourceType = "zoom" | "teams" | "meet" | "stream" | "upload";
  *  summary prompt + section labels and which dashboard a meeting appears on. */
 export type MeetingKind = "civic" | "course";
 
+/** The lawful basis the submitter affirmed when submitting a meeting for
+ *  self-serve recording: "public" = an open meeting of a public body;
+ *  "authorized" = the submitter has explicit authority to record it and add it
+ *  to the public library. Stored as an audit trail. Null on legacy/server-seeded
+ *  rows that predate the attestation gate. */
+export type MeetingAttestation = "public" | "authorized";
+
 export type MeetingStatus =
   | "pending"
   | "capturing"
@@ -55,6 +62,13 @@ export interface Meeting {
   schedule_id: string | null;
   /** Per-occurrence idempotency key (the fired next_fire_at); null off-schedule. */
   occurrence_key: string | null;
+  /** The lawful basis the submitter affirmed at create time (self-serve gate).
+   *  Null on rows created before the attestation gate (or server-seeded). */
+  attestation: MeetingAttestation | null;
+  /** When the submitter asked to add this to the public record (the "Add to the
+   *  public record" action on the self-serve result page). Null until requested;
+   *  publication still requires staff approval. */
+  publish_requested_at: string | null;
   /** False until an admin approves it into the public library (Phase 0). */
   published: boolean;
   /** When it was published (null while unpublished). */
@@ -94,6 +108,9 @@ export interface NewMeeting {
   audio_storage_path?: string | null;
   schedule_id?: string | null;
   occurrence_key?: string | null;
+  /** The lawful basis the submitter affirmed (self-serve gate). Defaults to null
+   *  for server-seeded/scheduled rows that carry no submitter attestation. */
+  attestation?: MeetingAttestation | null;
   /** Optional on create: published defaults to false, tenant_id to null, and
    *  source_key is computed from source_url when omitted. */
   published?: boolean;

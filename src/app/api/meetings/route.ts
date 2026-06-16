@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getConfig } from "@/lib/config";
 import { getStore } from "@/lib/store";
 import { createAndEnqueueCapture } from "@/lib/meetings/create";
 import { isInternalHost, meetingHostError, parseHttpUrl } from "@/lib/net/url";
 import { sourceKey } from "@/lib/net/source-key";
 import { isStaffRequest } from "@/lib/owner";
+import {
+  signMeetingView,
+  MEETING_VIEW_TTL_SECONDS,
+} from "@/lib/auth/meeting-view";
 import { enforceSubmitGuardrails } from "@/lib/guardrails";
 
 export const runtime = "nodejs";
@@ -17,6 +22,11 @@ const createMeetingSchema = z
     source_type: z.enum(["zoom", "teams", "meet", "stream"]),
     kind: z.enum(["civic", "course"]).optional(),
     source_url: z.string().trim().min(1, "source_url is required"),
+    // Lawful-basis attestation (required): the submitter affirms either that this
+    // is an open meeting of a public body, or that they have explicit authority
+    // to record it and add it to the public library. A missing/invalid value
+    // falls through to the existing 400 issues path.
+    attestation: z.enum(["public", "authorized"]),
     // Live captions opt-in (bot sources only; forced false for stream below).
     live_enabled: z.boolean().optional(),
   })
@@ -123,8 +133,24 @@ export async function POST(request: Request) {
     const key = sourceKey(parsed.data.source_url);
     const existing = await store.findBySourceKey(key);
     if (existing) {
+      // Dedup short-circuit. A NEW create is what mints a VIEW token and what
+      // returns the meeting; the dedup path must do NEITHER for a non-staff
+      // caller. Otherwise mere knowledge of the source URL would hand any
+      // resubmitter a (token-less) handle to someone else's pending meeting.
+      // Return a neutral, id-less acknowledgement. Staff may still receive the
+      // meeting for convenience (they can already read every meeting).
+      if (await isStaffRequest(request)) {
+        return NextResponse.json(
+          { duplicate: true, meeting: existing },
+          { status: 200 }
+        );
+      }
       return NextResponse.json(
-        { duplicate: true, meeting: existing },
+        {
+          duplicate: true,
+          message:
+            "This meeting was already submitted. It will appear in the public library once staff approve it.",
+        },
         { status: 200 }
       );
     }
@@ -139,9 +165,27 @@ export async function POST(request: Request) {
       source_type: parsed.data.source_type,
       kind: parsed.data.kind,
       source_url: parsed.data.source_url,
+      attestation: parsed.data.attestation,
       live_enabled: liveEnabled,
     });
-    return NextResponse.json(meeting, { status: 201 });
+
+    // Mint a single-meeting VIEW token bound to THIS genuine create (201), for
+    // THIS caller, so the submit form can show the self-serve result page. Only
+    // when a session secret is configured; in open mode the published gate is
+    // already open so the token is moot. Never minted on the dedup path above
+    // and never derivable from the source URL.
+    const secret = getConfig().sessionSecret;
+    const viewToken = secret
+      ? await signMeetingView(
+          {
+            mid: meeting.id,
+            exp: Math.floor(Date.now() / 1000) + MEETING_VIEW_TTL_SECONDS,
+          },
+          secret
+        )
+      : null;
+
+    return NextResponse.json({ ...meeting, viewToken }, { status: 201 });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to create meeting";
