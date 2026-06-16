@@ -106,12 +106,28 @@ export interface TopicSynthesisInput {
   }>;
 }
 
+/** Input to a rolling live "here's what you missed" recap. The recap is updated
+ *  by feeding the prior recap plus ONLY the live lines since it last covered, so
+ *  the LLM input stays bounded even on a multi-hour meeting. */
+export interface CatchUpInput {
+  meetingTitle: string;
+  bodyName: string;
+  /** The recap so far (null on the first generation). */
+  priorSummary: string | null;
+  /** The live-transcript lines added since the recap last covered. */
+  newLines: Array<{ speaker: string; text: string }>;
+}
+
 export interface SummaryProvider {
   summarize(input: SummaryInput): Promise<MeetingSummaryContent>;
   /** Cross-meeting synthesis: a Markdown narrative of how `topic` was discussed
    *  across the given PUBLISHED meetings. Grounded only in the provided
    *  material. Returns the markdown string (not JSON). */
   synthesizeTopic(input: TopicSynthesisInput): Promise<string>;
+  /** Rolling live recap for a meeting in progress: given the prior recap (may be
+   *  empty) and the newest transcript lines, produce/extend a single concise
+   *  plain-language "here's what you missed" recap. Returns plain text. */
+  catchUp(input: CatchUpInput): Promise<string>;
 }
 
 // ---------------------------------------------------------------------------

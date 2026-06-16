@@ -7,6 +7,8 @@
 
 import { NextResponse } from "next/server";
 import { getStore } from "@/lib/store";
+import { getProviders } from "@/lib/providers";
+import { maybeRefreshCatchUp } from "@/lib/live/catchup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,6 +48,17 @@ export async function GET(
           ? "waiting"
           : "ended";
 
+  // Keep the rolling "here's what you missed" recap warm: refresh it lazily and
+  // fire-and-forget while the meeting is live (the same post-response promise
+  // pattern the Recall webhook uses; Railway's long-lived Node server keeps it
+  // running). The refresh is best-effort and self-throttling (stale gate +
+  // optimistic debounce), so this never spends per viewer and never slows the
+  // poll. We do NOT await it.
+  if (phase === "live") {
+    const providers = getProviders();
+    void maybeRefreshCatchUp(meeting, store, providers).catch(() => {});
+  }
+
   return NextResponse.json(
     {
       utterances,
@@ -54,6 +67,9 @@ export async function GET(
       status: meeting.status,
       published: meeting.published,
       cursor,
+      catchUp: meeting.live_summary
+        ? { text: meeting.live_summary, updatedAt: meeting.live_summary_at }
+        : null,
     },
     { headers: { "Cache-Control": "no-store" } }
   );

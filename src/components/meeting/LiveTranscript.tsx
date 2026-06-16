@@ -18,12 +18,19 @@ const POLL_MS = 2000;
 
 export type LivePhase = "waiting" | "live" | "ended";
 
+/** The rolling "here's what you missed" recap, shared across all viewers. */
+interface CatchUp {
+  text: string;
+  updatedAt: string | null;
+}
+
 interface LiveTranscriptProps {
   meetingId: string;
   initial: LiveUtterance[];
   initialPhase: LivePhase;
   title: string;
   bodyName: string;
+  initialCatchUp: CatchUp | null;
   popout?: boolean;
 }
 
@@ -38,6 +45,21 @@ interface LivePollResponse {
   status: string;
   published: boolean;
   cursor: number;
+  catchUp: CatchUp | null;
+}
+
+/** A compact "updated X ago" label from an ISO timestamp. Returns "" when the
+ *  timestamp is missing or unparseable so the caller can omit the line. */
+function relativeTime(iso: string | null): string {
+  if (!iso) return "";
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return "";
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} hour${hours === 1 ? "" : "s"} ago`;
 }
 
 export function LiveTranscript({
@@ -46,12 +68,14 @@ export function LiveTranscript({
   initialPhase,
   title,
   bodyName,
+  initialCatchUp,
   popout = false,
 }: LiveTranscriptProps) {
   const [rows, setRows] = useState<LiveUtterance[]>(initial);
   const [phase, setPhase] = useState<LivePhase>(initialPhase);
   const [published, setPublished] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [catchUp, setCatchUp] = useState<CatchUp | null>(initialCatchUp);
 
   // Cursor lives in a ref so the poll closure always reads the latest value
   // without re-subscribing the interval on every new line.
@@ -84,6 +108,7 @@ export function LiveTranscript({
           }
           setPhase(data.phase);
           setPublished(data.published);
+          setCatchUp(data.catchUp);
           // Keep polling while waiting for the bot to join AND while live; stop
           // only once the meeting is genuinely over.
           if (data.phase === "ended") return;
@@ -174,6 +199,30 @@ export function LiveTranscript({
     </div>
   );
 
+  // "Here's what you missed": the rolling recap, shared across all viewers and
+  // shown above the transcript. Hidden in popout mode (kept minimal) and when no
+  // recap exists yet. The recap is auto-generated from the unreviewed live
+  // transcript, so it is labeled as such.
+  const catchUpCard = !popout && catchUp?.text && (
+    <section
+      aria-label="Here's what you missed"
+      className="mb-4 rounded-xl border border-line bg-primary-soft p-4 shadow-sm"
+    >
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-ink">
+        Here&apos;s what you missed
+      </h2>
+      <p className="mt-2 whitespace-pre-line leading-[1.7] text-ink">
+        {catchUp.text}
+      </p>
+      <p className="mt-3 text-xs text-ink-soft">
+        Automatic recap of the live transcript.
+        {relativeTime(catchUp.updatedAt) !== "" && (
+          <> Updated {relativeTime(catchUp.updatedAt)}.</>
+        )}
+      </p>
+    </section>
+  );
+
   const endedNote = phase === "ended" && (
     <p
       role="status"
@@ -246,6 +295,7 @@ export function LiveTranscript({
           </button>
         </div>
       </header>
+      {catchUpCard}
       {transcript}
       {endedNote}
     </div>

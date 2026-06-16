@@ -162,6 +162,10 @@ export class MemoryStore implements DataStore {
           live_enabled: m.live_enabled ?? false,
           live_started_at: m.live_started_at ?? null,
           live_ended_at: m.live_ended_at ?? null,
+          // Live catch-up recap columns (migration 0013): empty for legacy rows.
+          live_summary: m.live_summary ?? null,
+          live_summary_through_id: m.live_summary_through_id ?? null,
+          live_summary_at: m.live_summary_at ?? null,
         })),
         transcripts: asArray<Transcript>(rec.transcripts),
         utterances: asArray<Utterance>(rec.utterances),
@@ -266,6 +270,9 @@ export class MemoryStore implements DataStore {
         live_enabled: input.live_enabled ?? false,
         live_started_at: null,
         live_ended_at: null,
+        live_summary: null,
+        live_summary_through_id: null,
+        live_summary_at: null,
         created_at: now(),
       };
       db.meetings.push(meeting);
@@ -398,6 +405,9 @@ export class MemoryStore implements DataStore {
         | "live_enabled"
         | "live_started_at"
         | "live_ended_at"
+        | "live_summary"
+        | "live_summary_through_id"
+        | "live_summary_at"
       >
     >
   ): Promise<Meeting> {
@@ -419,6 +429,12 @@ export class MemoryStore implements DataStore {
         meeting.live_started_at = patch.live_started_at;
       if (patch.live_ended_at !== undefined)
         meeting.live_ended_at = patch.live_ended_at;
+      if (patch.live_summary !== undefined)
+        meeting.live_summary = patch.live_summary;
+      if (patch.live_summary_through_id !== undefined)
+        meeting.live_summary_through_id = patch.live_summary_through_id;
+      if (patch.live_summary_at !== undefined)
+        meeting.live_summary_at = patch.live_summary_at;
       await this.persist();
       return clone(meeting);
     });

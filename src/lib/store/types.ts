@@ -74,6 +74,9 @@ export interface DataStore {
         | "live_enabled"
         | "live_started_at"
         | "live_ended_at"
+        | "live_summary"
+        | "live_summary_through_id"
+        | "live_summary_at"
       >
     >
   ): Promise<Meeting>;

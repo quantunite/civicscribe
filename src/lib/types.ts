@@ -71,6 +71,15 @@ export interface Meeting {
   live_started_at: string | null;
   /** Set when the bot finishes capturing (null while live or never live). */
   live_ended_at: string | null;
+  /** Rolling "here's what you missed" recap of the live transcript, kept current
+   *  while the meeting is captured and served to all live viewers. Null until a
+   *  live meeting accrues lines and a viewer triggers the first generation. */
+  live_summary: string | null;
+  /** Highest live_utterance id the rolling recap has covered (null until then).
+   *  The next refresh feeds only lines past this id to the LLM, bounding input. */
+  live_summary_through_id: number | null;
+  /** When the rolling recap was last (re)generated; gates the ~120s refresh. */
+  live_summary_at: string | null;
   created_at: string;
 }
 
