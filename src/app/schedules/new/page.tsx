@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 
-import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
+import { isStaff } from "@/lib/auth/server";
 import NewScheduleForm from "@/components/schedules/NewScheduleForm";
 
 // The recurring controls are admin-only, so this reads the admin cookie per
@@ -15,8 +14,7 @@ export const metadata: Metadata = {
 };
 
 export default async function NewSchedulePage() {
-  const cookieStore = await cookies();
-  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
+  const isAdmin = await isStaff();
 
   return (
     <div className="mx-auto w-full max-w-2xl">

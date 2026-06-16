@@ -4,7 +4,7 @@ import { getStore } from "@/lib/store";
 import { createAndEnqueueCapture } from "@/lib/meetings/create";
 import { isInternalHost, meetingHostError, parseHttpUrl } from "@/lib/net/url";
 import { sourceKey } from "@/lib/net/source-key";
-import { isAdminRequest } from "@/lib/owner";
+import { isStaffRequest } from "@/lib/owner";
 import { enforceSubmitGuardrails } from "@/lib/guardrails";
 
 export const runtime = "nodejs";
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
     const kindParam = params.get("kind");
     const kind =
       kindParam === "civic" || kindParam === "course" ? kindParam : undefined;
-    const admin = isAdminRequest(request);
+    const admin = await isStaffRequest(request);
     const wantsAll = admin && params.get("published") !== "true";
     const store = getStore();
     const meetings = wantsAll

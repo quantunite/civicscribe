@@ -87,7 +87,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: true,
+    // Secure in production (HTTPS) only: a Secure cookie is dropped by the
+    // browser over plain http://localhost, which would silently break sign-in
+    // during local testing.
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
   });

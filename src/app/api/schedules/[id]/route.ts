@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getStore } from "@/lib/store";
-import { requireAdmin } from "@/lib/owner";
+import { requireStaff } from "@/lib/owner";
 import { isScheduleEditable } from "@/lib/schedule/editable";
 import { isInternalHost, meetingHostError, parseHttpUrl } from "@/lib/net/url";
 import type { ScheduleUpdate } from "@/lib/types";
@@ -36,7 +36,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const denied = requireAdmin(request);
+  const denied = await requireStaff(request);
   if (denied) return denied;
 
   const { id } = await params;
@@ -153,7 +153,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const denied = requireAdmin(request);
+  const denied = await requireStaff(request);
   if (denied) return denied;
 
   const { id } = await params;

@@ -3,13 +3,12 @@
 // while the processing pipeline runs.
 
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getStore } from "@/lib/store";
 import type { MeetingDetail, MeetingStatus, Utterance } from "@/lib/types";
 import { MeetingView } from "@/components/meeting/MeetingView";
 import { Breadcrumbs } from "@/components/nav/Breadcrumbs";
-import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
+import { isStaff } from "@/lib/auth/server";
 import { getConfig } from "@/lib/config";
 import { buildMeetingMetadata } from "@/lib/meetings/metadata";
 
@@ -84,8 +83,7 @@ export async function generateMetadata({
   // Reuse the same published/admin boundary the page enforces so a card never
   // leaks an unpublished meeting. Only fetch the summary when there is a
   // meeting (avoids a needless store read on a 404).
-  const cookieStore = await cookies();
-  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
+  const isAdmin = await isStaff();
   const summary =
     meeting && (meeting.published || isAdmin)
       ? await store.getSummaryByMeeting(meeting.id)
@@ -109,8 +107,7 @@ export default async function MeetingDetailPage({
   if (!detail) notFound();
   const { meeting } = detail;
 
-  const cookieStore = await cookies();
-  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
+  const isAdmin = await isStaff();
 
   // Published boundary: an unpublished (pending-review) meeting must not be
   // reachable by direct UUID for the public. 404 (notFound) rather than reveal

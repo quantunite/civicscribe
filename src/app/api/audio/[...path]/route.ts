@@ -1,5 +1,5 @@
 import { getFileStorage, getStore } from "@/lib/store";
-import { isAdminRequest } from "@/lib/owner";
+import { isStaffRequest } from "@/lib/owner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,7 +83,7 @@ export async function GET(
   // visible meeting is a 404 (and is never written to a shared cache).
   const meetingId = meetingIdFromStoragePath(storagePath);
   const meeting = meetingId ? await getStore().getMeeting(meetingId) : null;
-  const isAdmin = isAdminRequest(request);
+  const isAdmin = await isStaffRequest(request);
   const visible = !!meeting && (meeting.published || isAdmin);
   if (!visible) {
     return new Response("Not found", { status: 404 });

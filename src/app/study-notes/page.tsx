@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { getStore } from "@/lib/store";
 import MeetingList from "@/components/dashboard/MeetingList";
-import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
+import { isStaff } from "@/lib/auth/server";
 
 // Statuses change as the worker runs, and the visible set depends on the
 // per-request admin cookie, so always render fresh.
@@ -15,8 +14,7 @@ export const metadata = {
 };
 
 export default async function StudyNotesPage() {
-  const cookieStore = await cookies();
-  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
+  const isAdmin = await isStaff();
 
   // Public visitors see only published videos; admins see everything.
   const store = getStore();

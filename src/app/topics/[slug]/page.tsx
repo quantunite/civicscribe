@@ -8,11 +8,10 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
-import { cookies } from "next/headers";
 
 import { getStore } from "@/lib/store";
 import { getProviders } from "@/lib/providers";
-import { OWNER_COOKIE, isAdminCookie } from "@/lib/owner";
+import { isStaff } from "@/lib/auth/server";
 import { getOrBuildTopicSynthesis } from "@/lib/topics/synthesis";
 import { Breadcrumbs } from "@/components/nav/Breadcrumbs";
 import { LibraryMeetingGrid } from "@/components/library/LibraryMeetingGrid";
@@ -53,8 +52,7 @@ export default async function TopicSynthesisPage({
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);
 
-  const cookieStore = await cookies();
-  const isAdmin = isAdminCookie(cookieStore.get(OWNER_COOKIE)?.value ?? null);
+  const isAdmin = await isStaff();
 
   const result = await getOrBuildTopicSynthesis(
     getStore(),
