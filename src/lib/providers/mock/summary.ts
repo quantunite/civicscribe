@@ -3,6 +3,7 @@
 
 import { FIXTURE_COUNCIL_SUMMARY } from "@/lib/fixtures";
 import type {
+  CatchUpInput,
   SummaryInput,
   SummaryProvider,
   TopicSynthesisInput,
@@ -37,5 +38,19 @@ export class MockSummaryProvider implements SummaryProvider {
       lines.push(`- **${m.title}** (${m.date}): ${m.overview}`);
     }
     return lines.join("\n");
+  }
+
+  // Deterministic plain-text recap (no network) so the live catch-up flow runs
+  // in MOCK_MODE and tests can assert on it. Incorporates the new-line count and
+  // whether a prior recap was present. No em dash.
+  async catchUp(input: CatchUpInput): Promise<string> {
+    const base = input.priorSummary
+      ? "Continuing the recap"
+      : "Here is what you missed so far";
+    return (
+      `${base}: the meeting "${input.meetingTitle}" (${input.bodyName}) is ` +
+      `in progress, covering ${input.newLines.length} new line(s) since the ` +
+      "last update. This is an automatic recap of the live transcript."
+    );
   }
 }

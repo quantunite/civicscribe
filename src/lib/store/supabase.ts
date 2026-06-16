@@ -77,6 +77,9 @@ interface MeetingRow {
   live_enabled: boolean;
   live_started_at: string | null;
   live_ended_at: string | null;
+  live_summary: string | null;
+  live_summary_through_id: number | null;
+  live_summary_at: string | null;
   created_at: string;
 }
 
@@ -220,6 +223,9 @@ function mapMeeting(row: MeetingRow): Meeting {
     live_enabled: row.live_enabled ?? false,
     live_started_at: row.live_started_at ?? null,
     live_ended_at: row.live_ended_at ?? null,
+    live_summary: row.live_summary ?? null,
+    live_summary_through_id: row.live_summary_through_id ?? null,
+    live_summary_at: row.live_summary_at ?? null,
     created_at: row.created_at,
   };
 }
@@ -389,6 +395,8 @@ export class SupabaseStore implements DataStore {
         source_key: key,
         // live_started_at / live_ended_at keep their null column defaults; they
         // are set by the webhook (first line) and the capture stage (bot done).
+        // live_summary / live_summary_through_id / live_summary_at likewise keep
+        // their null defaults; the live poll endpoint fills them lazily (0013).
         live_enabled: input.live_enabled ?? false,
       })
       .select()
@@ -531,6 +539,9 @@ export class SupabaseStore implements DataStore {
         | "live_enabled"
         | "live_started_at"
         | "live_ended_at"
+        | "live_summary"
+        | "live_summary_through_id"
+        | "live_summary_at"
       >
     >
   ): Promise<Meeting> {
@@ -549,6 +560,12 @@ export class SupabaseStore implements DataStore {
       update.live_started_at = patch.live_started_at;
     if (patch.live_ended_at !== undefined)
       update.live_ended_at = patch.live_ended_at;
+    if (patch.live_summary !== undefined)
+      update.live_summary = patch.live_summary;
+    if (patch.live_summary_through_id !== undefined)
+      update.live_summary_through_id = patch.live_summary_through_id;
+    if (patch.live_summary_at !== undefined)
+      update.live_summary_at = patch.live_summary_at;
 
     if (Object.keys(update).length === 0) {
       const existing = await this.getMeeting(id);

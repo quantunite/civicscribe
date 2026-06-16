@@ -56,6 +56,11 @@ export default async function LiveMeetingPage({
       initialPhase={initialPhase}
       title={meeting.title}
       bodyName={meeting.body_name}
+      initialCatchUp={
+        meeting.live_summary
+          ? { text: meeting.live_summary, updatedAt: meeting.live_summary_at }
+          : null
+      }
       popout={popout === "1"}
     />
   );

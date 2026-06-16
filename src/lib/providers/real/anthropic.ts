@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import type { AppConfig } from "@/lib/config";
 import type {
+  CatchUpInput,
   SummaryInput,
   SummaryProvider,
   TopicSynthesisInput,
@@ -193,6 +194,40 @@ export function buildSynthesisUserContent(input: TopicSynthesisInput): string {
   return parts.join("\n").trimEnd();
 }
 
+// Live "catch me up" recap. The meeting is IN PROGRESS; we feed the prior recap
+// (may be empty) plus only the newest transcript lines so input stays bounded.
+// Plain text out (no JSON, no Markdown headings). No em dash (project rule).
+const CATCHUP_SYSTEM_PROMPT = `You are CivicScribe's live "catch me up" writer. A public government meeting is IN PROGRESS and a resident just opened the live page. Write a single short recap of what they missed so far.
+
+You are given the recap so far (it may be empty for the first update) and the newest live transcript lines. Update the recap so it reflects everything covered up to now: extend it with what the new lines add, and keep it to one concise paragraph of 3 to 6 sentences.
+
+Rules:
+- Plain English for a resident who just joined. No jargon, no acronyms without a plain-word explanation.
+- Cover what has been discussed and any decisions or votes taken so far. Note that the meeting is still ongoing.
+- The live transcript is auto-generated and may be rough; only state what the lines support, and never invent names, votes, or outcomes.
+- Return plain text only: no markdown headings, no bullet list, no JSON.
+- Do not use the long dash character; use commas, colons, or parentheses instead.`;
+
+/** Serialize a catch-up request into a single user-message string (exported so
+ *  it can be unit-tested without the SDK). */
+export function buildCatchUpUserContent(input: CatchUpInput): string {
+  const lines = input.newLines
+    .map((l) => `${l.speaker}: ${l.text}`)
+    .join("\n");
+  return [
+    `Meeting title: ${input.meetingTitle}`,
+    `Public body: ${input.bodyName}`,
+    "",
+    "Recap so far:",
+    input.priorSummary && input.priorSummary.trim() !== ""
+      ? input.priorSummary
+      : "(none yet — this is the first update)",
+    "",
+    "Newest live transcript lines:",
+    lines,
+  ].join("\n");
+}
+
 export class AnthropicSummaryProvider implements SummaryProvider {
   private client: Anthropic | null = null;
 
@@ -309,6 +344,44 @@ export class AnthropicSummaryProvider implements SummaryProvider {
     const inputTokens = response.usage?.input_tokens ?? 0;
     const outputTokens = response.usage?.output_tokens ?? 0;
     log.info("anthropic: synthesis spend", {
+      model: this.config.anthropicModel,
+      inputTokens,
+      outputTokens,
+      estimatedUsd: Number(
+        estimateAnthropicUsd(inputTokens, outputTokens).toFixed(4)
+      ),
+    });
+
+    return textBlock.text.trim();
+  }
+
+  async catchUp(input: CatchUpInput): Promise<string> {
+    const client = this.getClient();
+
+    // Plain text output, so no output_config.format (no JSON parsing/retry). The
+    // recap is short, so a tight max_tokens keeps each refresh cheap. API/network
+    // errors propagate; the caller (maybeRefreshCatchUp) is best-effort and never
+    // lets them surface to the poll response.
+    const response = await client.messages.create({
+      model: this.config.anthropicModel,
+      max_tokens: 1_024,
+      system: CATCHUP_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: buildCatchUpUserContent(input) }],
+    });
+
+    const textBlock = response.content.find(
+      (block): block is Anthropic.TextBlock => block.type === "text"
+    );
+    if (!textBlock) {
+      throw new Error(
+        `Anthropic catch-up response contained no text block (stop_reason: ${response.stop_reason ?? "unknown"}).`
+      );
+    }
+
+    // Per-call spend logging (observability only), matching summarize().
+    const inputTokens = response.usage?.input_tokens ?? 0;
+    const outputTokens = response.usage?.output_tokens ?? 0;
+    log.info("anthropic: catch-up spend", {
       model: this.config.anthropicModel,
       inputTokens,
       outputTokens,
