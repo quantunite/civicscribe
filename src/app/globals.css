@@ -127,9 +127,18 @@
  * Home page — cinematic civic landing (instructional guide + staff sign-in).
  * Dignified and non-partisan: a deep-navy council-chamber hero, parchment
  * text, a single gold hairline accent, and a restrained flag/star motif.
- * Constrained to the page container (not full-bleed). Motion is gated by the
- * global prefers-reduced-motion rule above.
+ * The hero is full-bleed: it breaks out of the centered page container to the
+ * page-canvas edges. Motion is gated by the global prefers-reduced-motion rule.
  * ------------------------------------------------------------------------- */
+
+/* The page canvas (set in layout.tsx on both the public shell and the signed-in
+   content column) is a size container, so the full-bleed hero's cqw units
+   resolve to the canvas width: the full viewport on the public layout, or the
+   content column beside the sidebar when signed in (never overlapping it). */
+.page-canvas {
+  container-type: inline-size;
+}
+
 .home {
   display: flex;
   flex-direction: column;
@@ -139,7 +148,13 @@
 .home-hero {
   position: relative;
   overflow: hidden;
-  border-radius: 1.25rem;
+  /* Full-bleed: break out of the centered, padded <main> to fill the page
+     canvas edge to edge for an immersive entrance (see .page-canvas above).
+     cqw resolves to the canvas width, so this is safe in both layouts. */
+  width: 100cqw;
+  max-width: 100cqw;
+  margin-inline: calc(50% - 50cqw);
+  border-radius: 0;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background:
     radial-gradient(125% 90% at 50% -12%, #284c78 0%, rgba(20, 39, 63, 0.2) 58%, transparent 72%),
