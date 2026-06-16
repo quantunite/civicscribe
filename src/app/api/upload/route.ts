@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getStore, getFileStorage } from "@/lib/store";
 import { getConfig } from "@/lib/config";
+import {
+  signMeetingView,
+  MEETING_VIEW_TTL_SECONDS,
+} from "@/lib/auth/meeting-view";
 import { enforceSubmitGuardrails } from "@/lib/guardrails";
 
 export const runtime = "nodejs";
@@ -85,6 +89,7 @@ export async function POST(request: Request) {
   const bodyName = form.get("body_name");
   const file = form.get("file");
   const kind = form.get("kind") === "course" ? "course" : "civic";
+  const attestationRaw = form.get("attestation");
 
   if (typeof title !== "string" || title.trim() === "") {
     return NextResponse.json({ error: "title is required" }, { status: 400 });
@@ -92,6 +97,18 @@ export async function POST(request: Request) {
   if (typeof bodyName !== "string" || bodyName.trim() === "") {
     return NextResponse.json({ error: "body_name is required" }, { status: 400 });
   }
+  // Lawful-basis attestation (required), mirroring POST /api/meetings: the
+  // submitter must affirm one of the two bases before we record + process.
+  if (attestationRaw !== "public" && attestationRaw !== "authorized") {
+    return NextResponse.json(
+      {
+        error:
+          "attestation is required and must be 'public' or 'authorized'",
+      },
+      { status: 400 }
+    );
+  }
+  const attestation = attestationRaw;
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json(
       { error: "file is required and must not be empty" },
@@ -125,6 +142,7 @@ export async function POST(request: Request) {
       body_name: bodyName.trim(),
       source_type: "upload",
       kind,
+      attestation,
     });
 
     const storagePath = `meetings/${meeting.id}/audio${ext}`;
@@ -152,7 +170,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: message }, { status: 500 });
     }
 
-    return NextResponse.json(updated, { status: 201 });
+    // Mint a single-meeting VIEW token bound to this genuine create (201) so the
+    // upload form can show the self-serve result page. Only when a session
+    // secret is set; in open mode the published gate is already open and the
+    // token is moot. Uploads have no source dedup, so this is always a new row.
+    const secret = getConfig().sessionSecret;
+    const viewToken = secret
+      ? await signMeetingView(
+          {
+            mid: updated.id,
+            exp: Math.floor(Date.now() / 1000) + MEETING_VIEW_TTL_SECONDS,
+          },
+          secret
+        )
+      : null;
+
+    return NextResponse.json({ ...updated, viewToken }, { status: 201 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Upload failed";
     return NextResponse.json({ error: message }, { status: 500 });

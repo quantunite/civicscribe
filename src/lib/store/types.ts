@@ -61,6 +61,11 @@ export interface DataStore {
   publishMeeting(id: string): Promise<Meeting>;
   /** Remove a meeting from the public library (clears published + published_at). */
   unpublishMeeting(id: string): Promise<Meeting>;
+  /** Mark that the submitter asked to add this meeting to the public record
+   *  (sets publish_requested_at = now). Idempotent: only sets it when currently
+   *  null, so a second request keeps the original timestamp. Publication still
+   *  requires staff approval. */
+  requestPublish(meetingId: string): Promise<void>;
   updateMeeting(
     id: string,
     patch: Partial<
@@ -77,6 +82,7 @@ export interface DataStore {
         | "live_summary"
         | "live_summary_through_id"
         | "live_summary_at"
+        | "publish_requested_at"
       >
     >
   ): Promise<Meeting>;

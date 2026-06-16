@@ -4,7 +4,8 @@
 
 import { NextResponse } from "next/server";
 import { getFileStorage, getStore } from "@/lib/store";
-import { isStaffRequest, requireStaff } from "@/lib/owner";
+import { requireStaff } from "@/lib/owner";
+import { canReadMeetingDetail } from "@/lib/auth/server";
 import type { MeetingDetail, Utterance } from "@/lib/types";
 
 export async function GET(
@@ -19,10 +20,14 @@ export async function GET(
     return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
   }
 
-  // Published boundary on the per-item read: an unpublished (pending-review)
-  // meeting must not be reachable by direct UUID for the public. Return 404
-  // (not 401) so its existence is not even confirmed. Admins get full detail.
-  if (!meeting.published && !(await isStaffRequest(req))) {
+  // Published boundary on the per-item read, extended for self-serve: an
+  // unpublished (pending-review) meeting is reachable by direct UUID only by
+  // staff OR by the submitter presenting a valid single-meeting VIEW token (the
+  // x-cs-view header) for THIS id. Otherwise 404 (not 401) so its existence is
+  // not even confirmed. The token opens ONLY this detail read; it does not grant
+  // export/download (that route stays staff-or-published) and never widens the
+  // library/search/topics surfaces.
+  if (!(await canReadMeetingDetail(req, meeting))) {
     return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
   }
 
@@ -35,7 +40,11 @@ export async function GET(
   ]);
 
   const detail: MeetingDetail = { meeting, transcript, utterances, summary };
-  return NextResponse.json(detail);
+  // no-store: an unpublished meeting's detail (reachable with a view token) must
+  // never be cached by a shared/CDN layer where another caller could read it.
+  return NextResponse.json(detail, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }
 
 // DELETE /api/meetings/[id] — remove the meeting, its dependent rows

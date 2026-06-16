@@ -23,6 +23,7 @@ function meetingBody(suffix: string) {
     source_type: "stream" as const,
     // Unique video id per call so dedup never short-circuits the submission.
     source_url: `https://www.youtube.com/watch?v=vid${suffix}`,
+    attestation: "public" as const,
   };
 }
 
@@ -91,6 +92,7 @@ describe("POST /api/upload — guardrails", () => {
     const form = new FormData();
     form.set("title", "Uploaded session");
     form.set("body_name", "City Council");
+    form.set("attestation", "public");
     form.set(
       "file",
       new File([new Uint8Array([1, 2, 3, 4])], "clip.mp3", {
