@@ -63,6 +63,14 @@ export interface Meeting {
   tenant_id: string | null;
   /** Normalized dedup key derived from source_url (null when no/odd source). */
   source_key: string | null;
+  /** Opt-in per meeting (bot sources only). When true, the Recall bot streams a
+   *  real-time transcript to the webhook and a public /meetings/[id]/live page
+   *  follows it. Defaults false; nothing changes for existing meetings. */
+  live_enabled: boolean;
+  /** Set when the first live utterance arrives (null until then). */
+  live_started_at: string | null;
+  /** Set when the bot finishes capturing (null while live or never live). */
+  live_ended_at: string | null;
   created_at: string;
 }
 
@@ -82,6 +90,8 @@ export interface NewMeeting {
   published?: boolean;
   tenant_id?: string | null;
   source_key?: string | null;
+  /** Opt-in live captions (bot sources only). Defaults false. */
+  live_enabled?: boolean;
 }
 
 // --- Scheduled / recurring capture -----------------------------------------
@@ -130,6 +140,8 @@ export interface Schedule {
   /** Next occurrence to fire (ISO instant). The sweep selects next_fire_at <= now. */
   next_fire_at: string;
   last_fired_at: string | null;
+  /** Created meetings inherit this (bot sources only). Defaults false. */
+  live_enabled: boolean;
   created_at: string;
 }
 
@@ -147,6 +159,8 @@ export interface NewSchedule {
   /** Fire instant (ISO). Recurring: firstFireAfter(recurrence, now). One-off:
    *  the chosen future instant the capture should run at. */
   next_fire_at: string;
+  /** Live captions for materialized meetings (bot sources only). Defaults false. */
+  live_enabled?: boolean;
 }
 
 /** Fields a schedule update may change. */
@@ -162,6 +176,7 @@ export interface ScheduleUpdate {
   enabled?: boolean;
   next_fire_at?: string;
   last_fired_at?: string | null;
+  live_enabled?: boolean;
 }
 
 export interface Transcript {
@@ -190,6 +205,25 @@ export interface NewUtterance {
   start_ms: number;
   end_ms: number;
   text: string;
+}
+
+/** One finalized live-transcript line, ingested from a Recall real-time
+ *  transcript.data event while a bot is in the call. Separate from the batch
+ *  Utterance: provisional, polled by the public live page, and replaced by the
+ *  authoritative diarized transcript after the meeting ends. */
+export interface LiveUtterance {
+  id: number;
+  meeting_id: string;
+  speaker_label: string | null;
+  text: string;
+  ts_seconds: number | null;
+  created_at: string;
+}
+
+export interface NewLiveUtterance {
+  speaker_label?: string | null;
+  text: string;
+  ts_seconds?: number | null;
 }
 
 export interface Summary {

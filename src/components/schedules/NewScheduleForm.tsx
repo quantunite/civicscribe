@@ -104,6 +104,8 @@ export default function NewScheduleForm({ isAdmin }: { isAdmin: boolean }) {
   const [kind, setKind] = useState<"civic" | "course">("civic");
   const [sourceType, setSourceType] = useState<ScheduledSourceType>("stream");
   const [sourceUrl, setSourceUrl] = useState("");
+  // Live captions: opt-in, bot sources only (zoom/teams/meet). Default off.
+  const [liveEnabled, setLiveEnabled] = useState(false);
 
   // One-off: the chosen future capture time. A datetime-local value carries no
   // timezone, so new Date(value) reads it in the browser's local zone (the
@@ -206,6 +208,10 @@ export default function NewScheduleForm({ isAdmin }: { isAdmin: boolean }) {
     setSubmitting(true);
     setStatus("Creating schedule…");
     try {
+      // Live captions only apply to a bot source; the server forces false for
+      // stream regardless, so it is safe to send it only for bot sources.
+      const liveField =
+        sourceType !== "stream" ? { live_enabled: liveEnabled } : {};
       const payload =
         mode === "one-off"
           ? {
@@ -216,6 +222,7 @@ export default function NewScheduleForm({ isAdmin }: { isAdmin: boolean }) {
               source_type: sourceType,
               source_url: sourceUrl.trim(),
               next_fire_at: new Date(when).toISOString(),
+              ...liveField,
             }
           : {
               mode: "recurring",
@@ -225,6 +232,7 @@ export default function NewScheduleForm({ isAdmin }: { isAdmin: boolean }) {
               source_type: sourceType,
               source_url: sourceUrl.trim(),
               recurrence: buildRecurrence(),
+              ...liveField,
             };
       const res = await fetch("/api/schedules", {
         method: "POST",
@@ -435,6 +443,31 @@ export default function NewScheduleForm({ isAdmin }: { isAdmin: boolean }) {
           </p>
         )}
       </div>
+
+      {/* Live captions opt-in: bot sources only (zoom/teams/meet), default off. */}
+      {sourceType !== "stream" && (
+        <div className="rounded-md border border-line bg-primary-soft p-4">
+          <label
+            htmlFor="sched-live"
+            className="flex cursor-pointer items-start gap-3"
+          >
+            <input
+              id="sched-live"
+              type="checkbox"
+              checked={liveEnabled}
+              onChange={(e) => setLiveEnabled(e.target.checked)}
+              className="mt-1 h-5 w-5 cursor-pointer rounded border-line-strong text-accent"
+            />
+            <span>
+              <span className="font-semibold text-ink">Live captions</span>
+              <span className="mt-1 block text-sm text-ink-soft">
+                Stream a public live transcript anyone can follow while the
+                meeting happens.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
 
       {mode === "one-off" && (
         <div>

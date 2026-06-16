@@ -22,10 +22,12 @@ import {
   MAX_JOB_ATTEMPTS,
   type Job,
   type JobType,
+  type LiveUtterance,
   type Meeting,
   type MeetingKind,
   type MeetingStatus,
   type MeetingSummaryContent,
+  type NewLiveUtterance,
   type NewMeeting,
   type NewSchedule,
   type NewUtterance,
@@ -60,6 +62,9 @@ interface DbShape {
   schedules: Schedule[];
   topic_syntheses: TopicSynthesis[];
   users: User[];
+  live_utterances: LiveUtterance[];
+  /** Monotonic counter mirroring the bigserial id on live_utterances. */
+  live_utterances_seq: number;
 }
 
 function emptyDb(): DbShape {
@@ -73,6 +78,8 @@ function emptyDb(): DbShape {
     schedules: [],
     topic_syntheses: [],
     users: [],
+    live_utterances: [],
+    live_utterances_seq: 0,
   };
 }
 
@@ -151,6 +158,10 @@ export class MemoryStore implements DataStore {
           // Back-fill the dedup key from the legacy source_url so old rows
           // dedup too; coalesce to null when there is nothing to derive.
           source_key: m.source_key ?? sourceKey(m.source_url),
+          // Live-transcription columns (migration 0012): off for legacy rows.
+          live_enabled: m.live_enabled ?? false,
+          live_started_at: m.live_started_at ?? null,
+          live_ended_at: m.live_ended_at ?? null,
         })),
         transcripts: asArray<Transcript>(rec.transcripts),
         utterances: asArray<Utterance>(rec.utterances),
@@ -158,14 +169,25 @@ export class MemoryStore implements DataStore {
         speaker_aliases: asArray<SpeakerAlias>(rec.speaker_aliases),
         jobs: asArray<Job>(rec.jobs),
         // Back-fill legacy schedule rows written before the one_off column /
-        // nullable recurrence existed.
+        // nullable recurrence / live_enabled existed.
         schedules: asArray<Schedule>(rec.schedules).map((s) => ({
           ...s,
           one_off: s.one_off ?? false,
           recurrence: s.recurrence ?? null,
+          live_enabled: s.live_enabled ?? false,
         })),
         topic_syntheses: asArray<TopicSynthesis>(rec.topic_syntheses),
         users: asArray<User>(rec.users),
+        live_utterances: asArray<LiveUtterance>(rec.live_utterances),
+        // Resume the id counter past the highest persisted live-utterance id so
+        // ids stay monotonic across restarts.
+        live_utterances_seq:
+          typeof rec.live_utterances_seq === "number"
+            ? rec.live_utterances_seq
+            : asArray<LiveUtterance>(rec.live_utterances).reduce(
+                (max, u) => Math.max(max, u.id),
+                0
+              ),
       };
     } catch {
       // Missing or corrupt file: start empty.
@@ -241,6 +263,9 @@ export class MemoryStore implements DataStore {
         published_at: null,
         tenant_id: input.tenant_id ?? null,
         source_key: key,
+        live_enabled: input.live_enabled ?? false,
+        live_started_at: null,
+        live_ended_at: null,
         created_at: now(),
       };
       db.meetings.push(meeting);
@@ -370,6 +395,9 @@ export class MemoryStore implements DataStore {
         | "audio_storage_path"
         | "duration_seconds"
         | "title"
+        | "live_enabled"
+        | "live_started_at"
+        | "live_ended_at"
       >
     >
   ): Promise<Meeting> {
@@ -385,6 +413,12 @@ export class MemoryStore implements DataStore {
       if (patch.duration_seconds !== undefined)
         meeting.duration_seconds = patch.duration_seconds;
       if (patch.title !== undefined) meeting.title = patch.title;
+      if (patch.live_enabled !== undefined)
+        meeting.live_enabled = patch.live_enabled;
+      if (patch.live_started_at !== undefined)
+        meeting.live_started_at = patch.live_started_at;
+      if (patch.live_ended_at !== undefined)
+        meeting.live_ended_at = patch.live_ended_at;
       await this.persist();
       return clone(meeting);
     });
@@ -424,6 +458,10 @@ export class MemoryStore implements DataStore {
       );
       db.summaries = db.summaries.filter((s) => s.meeting_id !== id);
       db.jobs = db.jobs.filter((j) => j.meeting_id !== id);
+      // Live lines cascade with the meeting (FK on delete cascade in Supabase).
+      db.live_utterances = db.live_utterances.filter(
+        (u) => u.meeting_id !== id
+      );
       await this.persist();
     });
   }
@@ -539,6 +577,56 @@ export class MemoryStore implements DataStore {
       }
       if (count > 0) await this.persist();
       return count;
+    });
+  }
+
+  // -- live transcription (polling) -------------------------------------------
+
+  appendLiveUtterance(
+    meetingId: string,
+    input: NewLiveUtterance
+  ): Promise<LiveUtterance> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      db.live_utterances_seq += 1;
+      const row: LiveUtterance = {
+        id: db.live_utterances_seq,
+        meeting_id: meetingId,
+        speaker_label: input.speaker_label ?? null,
+        text: input.text,
+        ts_seconds: input.ts_seconds ?? null,
+        created_at: now(),
+      };
+      db.live_utterances.push(row);
+      await this.persist();
+      return clone(row);
+    });
+  }
+
+  listLiveUtterances(
+    meetingId: string,
+    sinceId?: number
+  ): Promise<LiveUtterance[]> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      return db.live_utterances
+        .filter(
+          (u) =>
+            u.meeting_id === meetingId &&
+            (sinceId === undefined || u.id > sinceId)
+        )
+        .sort((a, b) => a.id - b.id)
+        .map(clone);
+    });
+  }
+
+  listLiveMeetings(): Promise<Meeting[]> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const matches = db.meetings.filter(
+        (m) => m.live_enabled && m.status === "capturing"
+      );
+      return this.sortNewestFirst(matches).map(clone);
     });
   }
 
@@ -868,6 +956,7 @@ export class MemoryStore implements DataStore {
         enabled: input.enabled ?? true,
         next_fire_at: input.next_fire_at,
         last_fired_at: null,
+        live_enabled: input.live_enabled ?? false,
         created_at: now(),
       };
       db.schedules.push(schedule);

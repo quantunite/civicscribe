@@ -3,6 +3,7 @@ import Image from "next/image";
 
 import { getStore } from "@/lib/store";
 import MeetingList from "@/components/dashboard/MeetingList";
+import { LiveNow } from "@/components/dashboard/LiveNow";
 import LoginForm from "@/components/auth/LoginForm";
 import { isStaff, currentUser } from "@/lib/auth/server";
 
@@ -58,6 +59,11 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Live now: any meeting currently streaming public live captions. Renders
+          nothing when none is live (no flex child, so no gap), so it is
+          invisible by default. Its own <section> picks up the .home flex gap. */}
+      <LiveNow />
 
       {/* How it works */}
       <section className="home-section">

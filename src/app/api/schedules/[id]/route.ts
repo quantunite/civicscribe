@@ -22,6 +22,7 @@ const patchSchema = z.object({
   kind: z.enum(["civic", "course"]).optional(),
   source_url: z.string().trim().min(1).optional(),
   next_fire_at: z.string().trim().min(1).optional(),
+  live_enabled: z.boolean().optional(),
 });
 
 const EDIT_FIELDS = [
@@ -30,6 +31,7 @@ const EDIT_FIELDS = [
   "kind",
   "source_url",
   "next_fire_at",
+  "live_enabled",
 ] as const;
 
 export async function PATCH(
@@ -84,6 +86,11 @@ export async function PATCH(
     if (data.title !== undefined) update.title = data.title;
     if (data.body_name !== undefined) update.body_name = data.body_name;
     if (data.kind !== undefined) update.kind = data.kind;
+    if (data.live_enabled !== undefined) {
+      // Live captions only apply to bot sources; force false for stream.
+      update.live_enabled =
+        schedule.source_type !== "stream" && data.live_enabled === true;
+    }
 
     if (data.source_url !== undefined) {
       const url = parseHttpUrl(data.source_url);

@@ -111,7 +111,8 @@ async function captureBot(
   if (!botId) {
     const created = await providers.capture.createBot(
       meeting.source_url,
-      meeting.id
+      meeting.id,
+      { liveTranscription: meeting.live_enabled === true }
     );
     botId = created.botId;
     botCreatedAt = new Date().toISOString();
@@ -148,6 +149,15 @@ async function captureBot(
     throw new Error(
       `Recall bot ${botId} reported done but returned no audio URL`
     );
+  }
+
+  // Live captions end when the bot finishes: mark the live window closed so the
+  // public live page can show "ended". (live_started_at is set by the webhook on
+  // the first utterance.) Only meaningful when live was enabled.
+  if (meeting.live_enabled && meeting.live_ended_at == null) {
+    await store.updateMeeting(meeting.id, {
+      live_ended_at: new Date().toISOString(),
+    });
   }
 
   const { data, contentType } = await providers.capture.downloadAudio(

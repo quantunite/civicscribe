@@ -17,6 +17,8 @@ const createMeetingSchema = z
     source_type: z.enum(["zoom", "teams", "meet", "stream"]),
     kind: z.enum(["civic", "course"]).optional(),
     source_url: z.string().trim().min(1, "source_url is required"),
+    // Live captions opt-in (bot sources only; forced false for stream below).
+    live_enabled: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     const url = parseHttpUrl(data.source_url);
@@ -127,13 +129,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // New submission: created published=false (pending admin review).
+    // New submission: created published=false (pending admin review). Live
+    // captions only apply to bot sources; force false for a stream source.
+    const liveEnabled =
+      parsed.data.source_type !== "stream" && parsed.data.live_enabled === true;
     const meeting = await createAndEnqueueCapture(store, {
       title: parsed.data.title,
       body_name: parsed.data.body_name,
       source_type: parsed.data.source_type,
       kind: parsed.data.kind,
       source_url: parsed.data.source_url,
+      live_enabled: liveEnabled,
     });
     return NextResponse.json(meeting, { status: 201 });
   } catch (err) {
