@@ -362,6 +362,30 @@
   margin-top: 0;
 }
 
+.home-notes {
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+  max-width: 62ch;
+}
+.home-notes li {
+  position: relative;
+  padding-left: 1.6rem;
+  color: var(--color-ink-soft);
+}
+.home-notes li::before {
+  content: "";
+  position: absolute;
+  left: 0.1rem;
+  top: 0.62em;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
 .home-signin-card {
   display: grid;
   gap: 1.5rem;

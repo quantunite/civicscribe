@@ -121,6 +121,40 @@ export default async function HomePage() {
         </p>
       </section>
 
+      {/* How capture works: the recording bot */}
+      <section className="home-section">
+        <p className="home-kicker">How capture works</p>
+        <h2>How the recording joins your meeting.</h2>
+        <p
+          style={{
+            marginTop: "0.75rem",
+            color: "var(--color-ink-soft)",
+            maxWidth: "62ch",
+          }}
+        >
+          For Zoom, Microsoft Teams, and Google Meet, CivicScribe sends a
+          recording bot into the meeting. It joins as a visible participant and
+          records the audio, then we transcribe it with speaker labels and write
+          a plain-language summary. You do not install anything.
+        </p>
+        <ul className="home-notes">
+          <li>Add the meeting a little before it starts so the bot is there in time.</li>
+          <li>
+            If the meeting has a waiting room, the host admits the bot like any
+            other guest.
+          </li>
+          <li>Include any passcode in the link by using the full invite URL.</li>
+          <li>
+            For registration-only webinars, register first and paste your
+            personal join link.
+          </li>
+          <li>
+            Prefer not to use a live bot? Paste the posted recording or stream
+            URL instead and we pull the audio directly.
+          </li>
+        </ul>
+      </section>
+
       {/* Staff sign-in (or signed-in panel). The instructional page stays the
           home page either way. */}
       <section className="home-section">
