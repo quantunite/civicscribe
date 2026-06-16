@@ -72,7 +72,7 @@ export default async function RootLayout({
           // Signed-in staff: left vertical sidebar (mobile drawer) + content.
           <div className="flex min-h-screen flex-col md:flex-row">
             <StaffSidebar />
-            <div className="flex min-h-screen flex-1 flex-col">
+            <div className="page-canvas flex min-h-screen flex-1 flex-col">
               <main
                 id="main-content"
                 className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10"
@@ -88,7 +88,7 @@ export default async function RootLayout({
           </div>
         ) : (
           // Public: top bar.
-          <div className="flex min-h-screen flex-col">
+          <div className="page-canvas flex min-h-screen flex-col">
             <header className="bg-primary text-white">
               <div className="relative mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
                 <Link
