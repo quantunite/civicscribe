@@ -297,6 +297,35 @@ describe("POST /api/meetings — attestation + view token + dedup", () => {
     const { getStore } = await import("@/lib/store");
     expect(await getStore().listMeetings()).toHaveLength(1);
   });
+
+  it("400s a bot source (zoom) with the non-public 'authorized' basis", async () => {
+    const { POST } = await import("@/app/api/meetings/route");
+    const res = await POST(
+      jsonReq({
+        title: "Council",
+        body_name: "City Council",
+        source_type: "zoom",
+        source_url: "https://us02web.zoom.us/j/12345",
+        attestation: "authorized",
+      })
+    );
+    // A recording bot may only join an open public meeting.
+    expect(res.status).toBe(400);
+  });
+
+  it("201s a bot source (zoom) with the 'public' basis", async () => {
+    const { POST } = await import("@/app/api/meetings/route");
+    const res = await POST(
+      jsonReq({
+        title: "Council",
+        body_name: "City Council",
+        source_type: "zoom",
+        source_url: "https://us02web.zoom.us/j/67890",
+        attestation: "public",
+      })
+    );
+    expect(res.status).toBe(201);
+  });
 });
 
 // ---------------------------------------------------------------------------

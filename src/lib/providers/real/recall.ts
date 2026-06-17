@@ -72,6 +72,12 @@ function extractAudioUrl(bot: RecallBot): string | undefined {
   return bot.video_url ?? undefined;
 }
 
+/** Posted to all participants when the bot joins. Accessibility-first framing
+ *  that also serves as the recording notice. Kept under the 500-char Google Meet
+ *  chat cap (Zoom/Teams allow 4096). */
+const BOT_ANNOUNCEMENT =
+  "Hello, this is CivicScribe. I have joined to provide live captions and a transcript so this meeting is accessible to everyone, including people who are deaf or hard of hearing. I am recording the audio to produce that transcript.";
+
 export class RecallCaptureProvider implements CaptureProvider {
   constructor(private readonly config: AppConfig) {}
 
@@ -166,8 +172,19 @@ export class RecallCaptureProvider implements CaptureProvider {
       method: "POST",
       body: {
         meeting_url: meetingUrl,
-        bot_name: "CivicScribe",
+        bot_name: "CivicScribe (live captions)",
         metadata: { civicscribe_meeting_id: meetingId },
+        // Announce on join: accessibility-first framing that also serves as the
+        // recording notice. Top-level `chat` block (Recall API); fires once the
+        // bot is admitted to the call, sent to everyone. (Teams may suppress bot
+        // chat by tenant policy; the visible bot name is the always-present
+        // fallback notice. Audible TTS would need a pre-rendered MP3, deferred.)
+        chat: {
+          on_bot_join: {
+            send_to: "everyone",
+            message: BOT_ANNOUNCEMENT,
+          },
+        },
         recording_config: recordingConfig,
       },
     });

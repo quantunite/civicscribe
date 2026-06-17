@@ -129,6 +129,11 @@ export default function NewMeetingForm({
     setActiveTab(key);
     setErrors((prev) => ({ ...prev, source: undefined }));
     setServerError(null);
+    // A recording bot is only for open public meetings, so the "authorized"
+    // (private, by-authority) basis does not apply to the Video call source.
+    if (key === "zoom") {
+      setAttestation((prev) => (prev === "authorized" ? null : prev));
+    }
   }
 
   /** Arrow-key navigation per the WAI-ARIA tabs pattern (automatic activation). */
@@ -325,6 +330,9 @@ export default function NewMeetingForm({
   }
 
   const activeTabConfig = TABS.find((t) => t.key === activeTab) ?? TABS[0];
+  // The Video call source dispatches a recording bot, which records everyone
+  // present, so it is restricted to the public-meeting basis.
+  const botSource = activeTab === "zoom";
 
   function resetForSubmitAnother() {
     setResult(null);
@@ -651,23 +659,25 @@ export default function NewMeetingForm({
               This is an open meeting of a public body.
             </span>
           </label>
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="radio"
-              name="attestation"
-              value="authorized"
-              checked={attestation === "authorized"}
-              onChange={() => {
-                setAttestation("authorized");
-                setErrors((prev) => ({ ...prev, attestation: undefined }));
-              }}
-              className="mt-1 h-5 w-5 cursor-pointer border-line-strong text-accent"
-            />
-            <span className="text-ink">
-              I have explicit authority to record this meeting and add it to the
-              public library.
-            </span>
-          </label>
+          {!botSource && (
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="radio"
+                name="attestation"
+                value="authorized"
+                checked={attestation === "authorized"}
+                onChange={() => {
+                  setAttestation("authorized");
+                  setErrors((prev) => ({ ...prev, attestation: undefined }));
+                }}
+                className="mt-1 h-5 w-5 cursor-pointer border-line-strong text-accent"
+              />
+              <span className="text-ink">
+                I have explicit authority to record this meeting and add it to the
+                public library.
+              </span>
+            </label>
+          )}
         </div>
         {errors.attestation ? (
           <p id="error-attestation" role="alert" className={errorClass}>
@@ -675,7 +685,9 @@ export default function NewMeetingForm({
           </p>
         ) : (
           <p id="hint-attestation" className="mt-2 text-sm text-ink-soft">
-            We record the basis you choose. Pick one to continue.
+            {botSource
+              ? "A recording bot is only for open public meetings. To add a private meeting you have authority over, use the Stream URL or Upload file source instead."
+              : "We record the basis you choose. Pick one to continue."}
           </p>
         )}
       </fieldset>
