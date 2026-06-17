@@ -80,3 +80,22 @@ is moot.
 - submit: missing/invalid attestation -> 400; the chosen basis is persisted;
   dedup hit -> no id/token to non-staff.
 - request-publish: sets publish_requested_at; idempotent.
+- bot-source scoping: zoom/teams/meet + attestation 'authorized' -> 400;
+  zoom + 'public' -> 201.
+
+## Legal hardening (shipped with this feature)
+
+Mitigations for the recording-consent exposure (red-team 2026-06-16; the active
+Otter.AI class action attacks the "vendor offloads consent to the user" design):
+- The recording bot announces itself on join with an accessibility-first message
+  that also serves as the recording notice, and joins under the visible name
+  "CivicScribe (live captions)". Chat via the Recall on_bot_join API; the visible
+  name is the always-present fallback (Teams may suppress bot chat by policy).
+- Bot capture is scoped to the public-meeting basis: zoom/teams/meet sources
+  require attestation = 'public' (a bot records everyone present). The
+  'authorized' basis is only for upload/stream (content you already hold).
+- Transcripts/summaries carry a visible "AI-generated, may contain errors, not an
+  official record" disclaimer; speaker labels stay generic (diarization labels)
+  unless staff apply a name.
+- Not built (deliberate / your call): verified-contact (OTP), operating-entity
+  clarification, and legal counsel before broad launch.

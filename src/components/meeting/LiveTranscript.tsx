@@ -215,7 +215,8 @@ export function LiveTranscript({
         {catchUp.text}
       </p>
       <p className="mt-3 text-xs text-ink-soft">
-        Automatic recap of the live transcript.
+        AI-generated recap of the live transcript. It may contain errors and is
+        not an official record.
         {relativeTime(catchUp.updatedAt) !== "" && (
           <> Updated {relativeTime(catchUp.updatedAt)}.</>
         )}

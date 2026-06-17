@@ -55,6 +55,25 @@ const createMeetingSchema = z
         ctx.addIssue({ code: "custom", path: ["source_url"], message: msg });
       }
     }
+
+    // Scope the recording BOT to public meetings: a bot joining a live call
+    // records everyone present, so the "authorized" (private, by-authority)
+    // basis is not sufficient for it. Bot sources (zoom/teams/meet) require the
+    // public-meeting basis; a private recording you have authority over should be
+    // uploaded instead.
+    if (
+      (data.source_type === "zoom" ||
+        data.source_type === "teams" ||
+        data.source_type === "meet") &&
+      data.attestation !== "public"
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["attestation"],
+        message:
+          "A recording bot can only join an open meeting of a public body. For a private meeting you have authority over, upload the recording or use a stream URL instead.",
+      });
+    }
   });
 
 /**
