@@ -62,4 +62,33 @@ describe("handleTranscribe short-circuit", () => {
     ).rejects.toThrow(/no audio_storage_path/);
     expect(transcribe).not.toHaveBeenCalled();
   });
+
+  it("fails (does not persist) when transcription returns zero utterances", async () => {
+    const meeting = await store.createMeeting({
+      title: "T",
+      body_name: "City Council",
+      source_type: "stream",
+      source_url: "https://x/v",
+    });
+    // Give it audio so the transcribe path actually runs the provider.
+    await files.put("meetings/x/audio.wav", Buffer.from("x"), "audio/wav");
+    await store.updateMeeting(meeting.id, {
+      audio_storage_path: "meetings/x/audio.wav",
+    });
+
+    const transcribe = vi.fn().mockResolvedValue({
+      rawJson: {},
+      language: "en",
+      durationSeconds: 60,
+      utterances: [],
+    });
+    const providers = { transcription: { transcribe } } as unknown as Providers;
+    const job = await store.enqueueJob(meeting.id, "transcribe");
+
+    await expect(
+      handleTranscribe(job, store, files, providers)
+    ).rejects.toThrow(/no speech/i);
+    // No empty transcript row left behind for the summarize stage to choke on.
+    expect(await store.getTranscriptByMeeting(meeting.id)).toBeNull();
+  });
 });

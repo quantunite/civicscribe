@@ -187,7 +187,10 @@ async function captureStream(
   const captions = await providers.streamIngest.fetchCaptions(
     meeting.source_url
   );
-  if (captions) {
+  // Only take the fast lane when the caption track actually carries utterances.
+  // An empty track (0 cues) must NOT short-circuit to an empty transcript: fall
+  // through to audio extraction + AssemblyAI, which is the real content.
+  if (captions && captions.utterances.length > 0) {
     await persistTranscription(store, meeting, captions, { diarized: false });
     return; // no audio stored; the transcribe stage will no-op
   }
