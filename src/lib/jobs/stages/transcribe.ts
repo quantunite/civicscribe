@@ -48,5 +48,17 @@ export async function handleTranscribe(
     contentType: audio.contentType,
   });
 
+  // A transcript with zero utterances is not a success: the source had no
+  // audible speech (a silent/empty recording, or a capture of a meeting that
+  // never actually happened at the scheduled time). Fail with a clear reason
+  // instead of letting the pipeline mark the meeting "complete" with an empty
+  // transcript the user can't tell apart from a bug.
+  if (result.utterances.length === 0) {
+    throw new Error(
+      "transcription produced no speech — the recording had no audible content " +
+        "(the source may have been silent, empty, or not actually live at the capture time)"
+    );
+  }
+
   await persistTranscription(store, meeting, result, { diarized: true });
 }

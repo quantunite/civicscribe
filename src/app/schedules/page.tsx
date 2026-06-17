@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getStore } from "@/lib/store";
 import { isStaff } from "@/lib/auth/server";
 import ScheduleList from "@/components/schedules/ScheduleList";
+import type { Meeting } from "@/lib/types";
 
 // next_fire_at / last_fired_at advance as the sweep runs — render fresh.
 export const dynamic = "force-dynamic";
@@ -15,7 +16,19 @@ export const metadata = {
 
 export default async function SchedulesPage() {
   const isAdmin = await isStaff();
-  const schedules = await getStore().listSchedules();
+  const store = getStore();
+  const schedules = await store.listSchedules();
+
+  // The most recent meeting each schedule has materialized, so the list can
+  // show "you scheduled it, here's what the capture actually produced" — the
+  // missing link between a fired schedule and its (possibly failed) meeting.
+  const latestById: Record<string, Meeting> = {};
+  await Promise.all(
+    schedules.map(async (s) => {
+      const meetings = await store.listMeetingsBySchedule(s.id);
+      if (meetings[0]) latestById[s.id] = meetings[0];
+    })
+  );
 
   return (
     <div className="flex flex-col gap-8">
@@ -35,7 +48,11 @@ export default async function SchedulesPage() {
           New schedule
         </Link>
       </div>
-      <ScheduleList initial={schedules} isAdmin={isAdmin} />
+      <ScheduleList
+        initial={schedules}
+        latestCaptures={latestById}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }

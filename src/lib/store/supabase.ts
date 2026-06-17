@@ -441,6 +441,16 @@ export class SupabaseStore implements DataStore {
     return data ? mapMeeting(data as MeetingRow) : null;
   }
 
+  async listMeetingsBySchedule(scheduleId: string): Promise<Meeting[]> {
+    const { data, error } = await this.client
+      .from("meetings")
+      .select("*")
+      .eq("schedule_id", scheduleId)
+      .order("created_at", { ascending: false });
+    if (error) fail("listMeetingsBySchedule", error);
+    return ((data ?? []) as MeetingRow[]).map(mapMeeting);
+  }
+
   async getMeeting(id: string): Promise<Meeting | null> {
     const { data, error } = await this.client
       .from("meetings")

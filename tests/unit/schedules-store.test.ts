@@ -86,3 +86,41 @@ describe("MemoryStore schedules: one-off vs recurring round-trip", () => {
     expect(created.one_off).toBe(false);
   });
 });
+
+describe("MemoryStore listMeetingsBySchedule", () => {
+  it("returns a schedule's meetings newest-first and ignores others", async () => {
+    const schedule = await store.createSchedule(oneOff());
+
+    const m1 = await store.createMeeting({
+      title: "Occurrence 1",
+      body_name: "Lawrence City Council",
+      source_type: "stream",
+      source_url: "https://example.org/live?occ=1",
+      schedule_id: schedule.id,
+      occurrence_key: "2099-01-05T18:00:00.000Z",
+    });
+    const m2 = await store.createMeeting({
+      title: "Occurrence 2",
+      body_name: "Lawrence City Council",
+      source_type: "stream",
+      source_url: "https://example.org/live?occ=2",
+      schedule_id: schedule.id,
+      occurrence_key: "2099-01-12T18:00:00.000Z",
+    });
+    // An unrelated, off-schedule meeting must never leak into the result.
+    await store.createMeeting({
+      title: "Ad-hoc",
+      body_name: "Lawrence City Council",
+      source_type: "stream",
+      source_url: "https://example.org/adhoc",
+    });
+
+    const meetings = await store.listMeetingsBySchedule(schedule.id);
+    expect(meetings.map((m) => m.id)).toEqual([m2.id, m1.id]);
+  });
+
+  it("returns an empty array for a schedule that never fired", async () => {
+    const schedule = await store.createSchedule(oneOff());
+    expect(await store.listMeetingsBySchedule(schedule.id)).toEqual([]);
+  });
+});

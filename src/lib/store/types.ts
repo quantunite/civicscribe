@@ -45,6 +45,10 @@ export interface DataStore {
     scheduleId: string,
     occurrenceKey: string
   ): Promise<Meeting | null>;
+  /** Every meeting a schedule has materialized, newest first. Powers the
+   *  Schedules page "latest capture" link so a fired schedule is traceable to
+   *  the meeting (and its status/error) it produced. */
+  listMeetingsBySchedule(scheduleId: string): Promise<Meeting[]>;
   /** Newest first. Optionally restrict to a single kind (civic vs course). */
   listMeetings(kind?: MeetingKind): Promise<Meeting[]>;
   /** The public library feed: published meetings only, newest first, optionally

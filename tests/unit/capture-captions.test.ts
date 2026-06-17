@@ -57,6 +57,35 @@ describe("captureStream caption fast lane", () => {
     expect(after?.audio_storage_path).toBeNull();
   });
 
+  it("falls back to extractAudio when the caption track is empty (0 cues)", async () => {
+    const meeting = await streamMeeting();
+    const extractAudio = vi.fn().mockResolvedValue({
+      data: Buffer.from("x"),
+      contentType: "audio/wav",
+      durationSeconds: 120,
+    });
+    // A caption track that exists but carries no utterances must NOT short-circuit
+    // to an empty transcript — it should fall through to real audio capture.
+    const providers = streamProviders({
+      fetchCaptions: vi.fn().mockResolvedValue({
+        rawJson: {},
+        language: "en",
+        durationSeconds: null,
+        utterances: [],
+      }),
+      extractAudio,
+    });
+    const job = await store.enqueueJob(meeting.id, "capture");
+
+    await handleCapture(job, store, files, providers);
+
+    expect(extractAudio).toHaveBeenCalledTimes(1);
+    const t = await store.getTranscriptByMeeting(meeting.id);
+    expect(t).toBeNull();
+    const after = await store.getMeeting(meeting.id);
+    expect(after?.audio_storage_path).toBeTruthy();
+  });
+
   it("falls back to extractAudio when there are no captions", async () => {
     const meeting = await streamMeeting();
     const extractAudio = vi.fn().mockResolvedValue({

@@ -308,6 +308,14 @@ export class MemoryStore implements DataStore {
     });
   }
 
+  listMeetingsBySchedule(scheduleId: string): Promise<Meeting[]> {
+    return this.withLock(async () => {
+      const db = await this.load();
+      const matches = db.meetings.filter((m) => m.schedule_id === scheduleId);
+      return this.sortNewestFirst(matches).map(clone);
+    });
+  }
+
   listMeetings(kind?: MeetingKind): Promise<Meeting[]> {
     return this.withLock(async () => {
       const db = await this.load();
