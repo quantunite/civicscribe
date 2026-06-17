@@ -5,6 +5,7 @@
 
 import type { AppConfig } from "@/lib/config";
 import type { BotStatus, CaptureProvider } from "@/lib/providers/types";
+import { compressMeetingAudio } from "@/lib/media/compress-audio";
 
 // ---------------------------------------------------------------------------
 // Minimal shapes of the Recall.ai responses we read. All fields are optional —
@@ -244,6 +245,12 @@ export class RecallCaptureProvider implements CaptureProvider {
     }
     const data = Buffer.from(await res.arrayBuffer());
     const contentType = res.headers.get("content-type") ?? "audio/mpeg";
-    return { data, contentType };
+
+    // Recall returns a mixed-down MP3 of the whole call, which for a long
+    // meeting can exceed the storage upload size limit. Transcode to mono
+    // low-bitrate AAC before it is stored; on any failure keep the original so
+    // a compression problem never blocks the capture.
+    const compressed = await compressMeetingAudio(data);
+    return compressed ?? { data, contentType };
   }
 }
