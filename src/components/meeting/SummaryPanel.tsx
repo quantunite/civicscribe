@@ -4,6 +4,7 @@
 
 import type { MeetingKind, MeetingStatus, Summary } from "@/lib/types";
 import { summaryLabels } from "@/lib/summary-labels";
+import { filterMeaningfulTopics } from "@/lib/topics";
 import { TopicChips } from "@/components/nav/TopicChips";
 
 const PROGRESS_NOTES: Partial<Record<MeetingStatus, string>> = {
@@ -61,6 +62,10 @@ export function SummaryPanel({
     // Complete but no summary stored (shouldn't normally happen).
     return null;
   }
+
+  // Drop routine procedural items (roll call, minutes, …) so the chips show only
+  // real subject matter — matching the filtered topic cloud on the library.
+  const meaningfulTopics = filterMeaningfulTopics(summary.topics);
 
   return (
     <section
@@ -135,7 +140,7 @@ export function SummaryPanel({
         </section>
       </div>
 
-      {summary.topics.length > 0 && (
+      {meaningfulTopics.length > 0 && (
         <section aria-labelledby="topics-heading" className="mt-6">
           <h3
             id="topics-heading"
@@ -143,7 +148,7 @@ export function SummaryPanel({
           >
             Topics
           </h3>
-          <TopicChips topics={summary.topics} className="mt-2" />
+          <TopicChips topics={meaningfulTopics} className="mt-2" />
           <p className="sr-only">
             Select a topic to browse other published meetings about it.
           </p>

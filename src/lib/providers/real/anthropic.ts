@@ -27,7 +27,7 @@ You will receive a diarized transcript of a public government meeting (city coun
 - "overview": 2-4 short paragraphs in plain language covering what the meeting was about and what happened. No jargon without explanation.
 - "key_decisions": an array of strings, one per formal decision — votes, approvals, denials, adopted ordinances/resolutions, appointments. Include the outcome and vote tally when stated (e.g. "Approved rezoning of 12 Oak St from R-1 to R-2 (5-2)"). Empty array if none.
 - "action_items": an array of strings, one per concrete follow-up or commitment, naming the responsible party and deadline when stated. Empty array if none.
-- "topics": an array of short topic tags (2-5 words each) covering everything substantively discussed, including public comment themes.
+- "topics": an array of short SUBJECT-MATTER tags (2-5 words each) naming the substantive issues, policies, projects, places, and public-comment THEMES discussed — the things a resident would actually search for. Do NOT tag routine procedural or administrative business that has no subject matter: exclude roll call, attendance, quorum, approval of the agenda or minutes, the pledge of allegiance, invocations, recesses, announcements, old/new business headings, and adjournment. Prefer a few precise topics over an exhaustive list.
 - "full_markdown": a complete narrative summary in Markdown with headed sections (e.g. ## Overview, ## Decisions, ## Public Comment, ## Action Items), written so someone who missed the meeting fully understands what occurred.
 
 Rules: only report what the transcript supports — never invent names, votes, or outcomes. Attribute statements to speaker labels as given. Respond with the JSON object only.`;
