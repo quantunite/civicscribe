@@ -262,4 +262,16 @@ export interface FileStorage {
   delete(path: string): Promise<void>;
   /** URL the browser can stream audio from (always /api/audio/<path>). */
   publicUrl(path: string): string;
+  /**
+   * A short-lived URL a trusted third party (e.g. AssemblyAI) can fetch the
+   * object from DIRECTLY, so the bytes never transit this server. Returns null
+   * when the backend cannot mint one (local-disk dev), and the caller then
+   * falls back to reading the bytes via get(). The transcribe stage uses this
+   * to avoid buffering a whole (possibly hundreds-of-MB) recording into the
+   * single shared Railway container — the dominant OOM risk in the pipeline.
+   */
+  signedReadUrl(
+    path: string,
+    expiresInSeconds?: number
+  ): Promise<string | null>;
 }

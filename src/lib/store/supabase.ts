@@ -1383,12 +1383,26 @@ export class SupabaseFileStorage implements FileStorage {
   }
 
   /** Short-lived signed URL for direct, ranged reads from Supabase Storage. */
-  private async signedUrl(storagePath: string): Promise<string | null> {
+  private async signedUrl(
+    storagePath: string,
+    expiresInSeconds = 3600
+  ): Promise<string | null> {
     const { data, error } = await this.client.storage
       .from(AUDIO_BUCKET)
-      .createSignedUrl(normalizeKey(storagePath), 3600);
+      .createSignedUrl(normalizeKey(storagePath), expiresInSeconds);
     if (error || !data) return null;
     return data.signedUrl;
+  }
+
+  /** A signed URL AssemblyAI can fetch the recording from directly, so the
+   *  transcribe stage never buffers the whole (large) audio object into the
+   *  app process. Supabase Storage objects are private, so the token-bearing
+   *  signed URL is what makes a third-party fetch possible. */
+  async signedReadUrl(
+    storagePath: string,
+    expiresInSeconds = 3600
+  ): Promise<string | null> {
+    return this.signedUrl(storagePath, expiresInSeconds);
   }
 
   async delete(storagePath: string): Promise<void> {
