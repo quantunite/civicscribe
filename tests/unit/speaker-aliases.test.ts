@@ -193,6 +193,11 @@ function stubFiles(): FileStorage {
       /* not used by the transcribe stage */
     },
     publicUrl: (p: string) => `/api/audio/${p}`,
+    // Return null so the transcribe stage exercises the bytes path here (get()
+    // above returns the fake audio); the signed-URL path is covered separately.
+    async signedReadUrl() {
+      return null;
+    },
   };
 }
 

@@ -1216,4 +1216,11 @@ export class LocalFileStorage implements FileStorage {
   publicUrl(storagePath: string): string {
     return "/api/audio/" + storagePath.replace(/^[/\\]+/, "");
   }
+
+  async signedReadUrl(): Promise<string | null> {
+    // Local-disk storage exposes no externally-fetchable URL, so the transcribe
+    // stage falls back to reading the bytes via get(). Local/dev runs the mock
+    // transcription provider, which ignores the audio source entirely.
+    return null;
+  }
 }

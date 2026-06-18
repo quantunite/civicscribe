@@ -6,6 +6,7 @@
 // Railway restarts the whole thing.
 
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const port = process.env.PORT || "3000";
 const base = `http://127.0.0.1:${port}`;
@@ -16,10 +17,67 @@ const INTERVAL_MS = Number(process.env.TICK_INTERVAL_MS || "5000");
 const READY_TIMEOUT_MS = Number(process.env.READY_TIMEOUT_MS || "60000");
 const READY_POLL_MS = Number(process.env.READY_POLL_MS || "1000");
 
+/**
+ * Best-effort read of THIS container's memory limit (bytes) from cgroup. Node
+ * does not always infer a containerized limit, so without this V8's old-space
+ * can grow past the container cap and the kernel OOM-kills the process (exit
+ * 137) — Railway then restarts the whole service. Returns null when no finite
+ * limit is published (e.g. local dev, or an unconstrained host).
+ */
+function readCgroupMemoryLimitBytes() {
+  const candidates = [
+    "/sys/fs/cgroup/memory.max", // cgroup v2
+    "/sys/fs/cgroup/memory/memory.limit_in_bytes", // cgroup v1
+  ];
+  for (const file of candidates) {
+    try {
+      const raw = readFileSync(file, "utf8").trim();
+      if (raw === "" || raw === "max") continue; // v2 sentinel for "unlimited"
+      const bytes = Number(raw);
+      if (!Number.isFinite(bytes) || bytes <= 0) continue;
+      // v1 reports a near-2^63 sentinel when unlimited; treat anything above a
+      // sane ceiling as "no real limit".
+      if (bytes > 64 * 1024 * 1024 * 1024) continue;
+      return bytes;
+    } catch {
+      // File absent (non-Linux / no cgroup): try the next candidate.
+    }
+  }
+  return null;
+}
+
+/**
+ * Pick a --max-old-space-size (MB) at ~75% of the container limit, leaving
+ * headroom for Node's other arenas (C++, stack, off-heap Buffers). Returns null
+ * when we cannot read a limit or it is too small to safely cap, so Node keeps
+ * its own default.
+ */
+function chooseOldSpaceMb() {
+  const limit = readCgroupMemoryLimitBytes();
+  if (limit === null) return null;
+  const mb = Math.floor((limit / (1024 * 1024)) * 0.75);
+  if (mb < 128) return null; // too small to cap without starving the heap
+  return Math.min(mb, 4096);
+}
+
+// Hand the actual web/job process (the `next start` child) a container-aware
+// heap cap, unless one was already set explicitly via NODE_OPTIONS.
+const childEnv = { ...process.env };
+if (!/--max-old-space-size=/.test(childEnv.NODE_OPTIONS || "")) {
+  const mb = chooseOldSpaceMb();
+  if (mb !== null) {
+    childEnv.NODE_OPTIONS =
+      `${childEnv.NODE_OPTIONS ? `${childEnv.NODE_OPTIONS} ` : ""}--max-old-space-size=${mb}`;
+    console.log(
+      `[railway-start] V8 old-space capped at ${mb} MB (container-aware)`
+    );
+  }
+}
+
 const next = spawn(
   process.execPath,
   ["./node_modules/next/dist/bin/next", "start", "-p", port],
-  { stdio: "inherit" }
+  { stdio: "inherit", env: childEnv }
 );
 next.on("exit", (code) => process.exit(code ?? 0));
 

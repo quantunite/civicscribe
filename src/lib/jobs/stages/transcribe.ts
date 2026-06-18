@@ -35,18 +35,34 @@ export async function handleTranscribe(
     );
   }
 
-  const audio = await files.get(meeting.audio_storage_path);
-  if (!audio) {
-    throw new Error(
-      `Audio file missing from storage: ${meeting.audio_storage_path}`
-    );
-  }
+  // Prefer handing the transcription provider a short-lived signed URL so it
+  // fetches the recording DIRECTLY. A long meeting's audio can be hundreds of
+  // MB (MAX_UPLOAD_MB defaults to 200), and buffering the whole file into this
+  // process is the dominant OOM risk on Railway, where one container runs the
+  // web server AND this job loop in a single Node heap. Only when the backend
+  // cannot mint a URL (local-disk dev, which uses the mock provider) do we fall
+  // back to reading the bytes.
+  const signedUrl = await files.signedReadUrl(meeting.audio_storage_path);
 
-  const result = await providers.transcription.transcribe({
-    kind: "bytes",
-    data: audio.data,
-    contentType: audio.contentType,
-  });
+  let result;
+  if (signedUrl) {
+    result = await providers.transcription.transcribe({
+      kind: "url",
+      url: signedUrl,
+    });
+  } else {
+    const audio = await files.get(meeting.audio_storage_path);
+    if (!audio) {
+      throw new Error(
+        `Audio file missing from storage: ${meeting.audio_storage_path}`
+      );
+    }
+    result = await providers.transcription.transcribe({
+      kind: "bytes",
+      data: audio.data,
+      contentType: audio.contentType,
+    });
+  }
 
   await persistTranscription(store, meeting, result, { diarized: true });
 }
