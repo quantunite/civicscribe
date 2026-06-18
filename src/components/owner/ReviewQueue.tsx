@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Meeting } from "@/lib/types";
-import { formatDate } from "@/components/dashboard/MeetingCard";
+import { formatDate } from "@/components/dashboard/meeting-format";
 
 /** Admin moderation queue: approve a generated meeting into the public library
  *  (publish) or remove it (delete). Renders the items handed in by the page; on
