@@ -23,7 +23,7 @@ const BLOCKS: LegalBlock[] = [
   { kind: "h2", text: "Who we are" },
   {
     kind: "p",
-    text: `CivicScribe is operated by ATP Consulting LLC, a limited liability company. ATP Consulting is the controller responsible for the information processed through the Service. You can reach us using the contact details at the end of this policy.`,
+    text: `CivicScribe is operated by ATP Consulting LLC, a New Hampshire limited liability company. ATP Consulting is the controller responsible for the information processed through the Service. You can reach us using the contact details at the end of this policy.`,
   },
 
   { kind: "h2", text: "Information we collect" },
