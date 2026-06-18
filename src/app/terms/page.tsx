@@ -119,7 +119,7 @@ const BLOCKS: LegalBlock[] = [
   { kind: "h2", text: "Governing law and disputes" },
   {
     kind: "p",
-    text: `These Terms are governed by the laws of the Commonwealth of Massachusetts, without regard to its conflict-of-laws rules. Any dispute arising out of or relating to the Service or these Terms will be brought exclusively in the state or federal courts located in Massachusetts, and you consent to the personal jurisdiction of those courts.`,
+    text: `These Terms are governed by the laws of the State of New Hampshire, without regard to its conflict-of-laws rules. Any dispute arising out of or relating to the Service or these Terms will be brought exclusively in the state or federal courts located in New Hampshire, and you consent to the personal jurisdiction of those courts. This choice of law governs the agreement between you and ATP Consulting; it does not change the recording, open-meeting, or other laws that apply to a given meeting based on where it takes place.`,
   },
 
   { kind: "h2", text: "Changes to these Terms" },
