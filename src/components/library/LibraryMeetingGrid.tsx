@@ -9,7 +9,7 @@ import Link from "next/link";
 
 import type { Meeting } from "@/lib/types";
 import StatusBadge from "@/components/dashboard/StatusBadge";
-import { formatDate, formatDuration } from "@/components/dashboard/MeetingCard";
+import { formatDate, formatDuration } from "@/components/dashboard/meeting-format";
 
 const SOURCE_LABEL: Record<Meeting["source_type"], string> = {
   zoom: "Zoom capture",

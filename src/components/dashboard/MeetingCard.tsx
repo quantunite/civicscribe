@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { Meeting } from "@/lib/types";
 import StatusBadge from "@/components/dashboard/StatusBadge";
+import { formatDate, formatDuration } from "@/components/dashboard/meeting-format";
 
 const SOURCE_LABEL: Record<Meeting["source_type"], string> = {
   zoom: "Zoom capture",
@@ -12,28 +13,6 @@ const SOURCE_LABEL: Record<Meeting["source_type"], string> = {
   stream: "Stream capture",
   upload: "Uploaded file",
 };
-
-/** "42:17 min" under an hour, "1:23 hr" at an hour or more. */
-export function formatDuration(seconds: number): string {
-  const total = Math.max(0, Math.round(seconds));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  if (h >= 1) {
-    return `${h}:${String(m).padStart(2, "0")} hr`;
-  }
-  return `${m}:${String(s).padStart(2, "0")} min`;
-}
-
-export function formatDate(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 export default function MeetingCard({
   meeting,
