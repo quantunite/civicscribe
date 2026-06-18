@@ -51,8 +51,7 @@ export const metadata: Metadata = {
 // cached. Signed-in staff get a left sidebar; the public gets the top bar.
 export const dynamic = "force-dynamic";
 
-const FOOTER_TEXT =
-  "CivicScribe: a personal archive of public meetings, built accessibility-first.";
+const FOOTER_TEXT = "© 2026 ATP Consulting LLC · CivicScribe";
 
 export default async function RootLayout({
   children,
@@ -80,8 +79,22 @@ export default async function RootLayout({
                 {children}
               </main>
               <footer className="border-t border-line bg-surface">
-                <div className="mx-auto w-full max-w-6xl px-4 py-5 text-sm text-ink-soft sm:px-6">
-                  {FOOTER_TEXT}
+                <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-5 text-sm text-ink-soft sm:px-6">
+                  <span>{FOOTER_TEXT}</span>
+                  <nav className="flex flex-wrap items-center gap-4">
+                    <Link
+                      href="/terms"
+                      className="underline-offset-4 hover:text-ink hover:underline"
+                    >
+                      Terms
+                    </Link>
+                    <Link
+                      href="/privacy"
+                      className="underline-offset-4 hover:text-ink hover:underline"
+                    >
+                      Privacy
+                    </Link>
+                  </nav>
                 </div>
               </footer>
             </div>
@@ -124,14 +137,28 @@ export default async function RootLayout({
               {children}
             </main>
             <footer className="border-t border-line bg-surface">
-              <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-5 text-sm text-ink-soft sm:px-6">
+              <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-5 text-sm text-ink-soft sm:px-6">
                 <span>{FOOTER_TEXT}</span>
-                <Link
-                  href="/login"
-                  className="text-ink-soft underline-offset-4 hover:text-ink hover:underline"
-                >
-                  Sign in
-                </Link>
+                <nav className="flex flex-wrap items-center gap-4">
+                  <Link
+                    href="/terms"
+                    className="underline-offset-4 hover:text-ink hover:underline"
+                  >
+                    Terms
+                  </Link>
+                  <Link
+                    href="/privacy"
+                    className="underline-offset-4 hover:text-ink hover:underline"
+                  >
+                    Privacy
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="underline-offset-4 hover:text-ink hover:underline"
+                  >
+                    Sign in
+                  </Link>
+                </nav>
               </div>
             </footer>
           </div>
