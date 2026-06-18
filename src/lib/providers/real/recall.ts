@@ -76,8 +76,25 @@ function extractAudioUrl(bot: RecallBot): string | undefined {
 /** Posted to all participants when the bot joins. Accessibility-first framing
  *  that also serves as the recording notice. Kept under the 500-char Google Meet
  *  chat cap (Zoom/Teams allow 4096). */
-const BOT_ANNOUNCEMENT =
+const BOT_ANNOUNCEMENT_BASE =
   "Hello, this is CivicScribe. I have joined to provide live captions and a transcript so this meeting is accessible to everyone, including people who are deaf or hard of hearing. I am recording the audio to produce that transcript.";
+
+// Legal-basis clause appended to the notice. ONLY Massachusetts is cleared today
+// — this is a single-state (City of Lawrence) deployment, so the citation is
+// hardcoded to MA. State-awareness is a deliberate LATER scope add, not an
+// oversight: the controlling recording law is not reliably auto-detectable from
+// a video call (a multi-state call can implicate several states' laws, and the
+// platform gives no jurisdiction signal). When CivicScribe captures meetings
+// outside MA, this must become a per-meeting DECLARED jurisdiction — the
+// submitter knows the body's state — with a reviewed citation per state and a
+// neutral fallback when unknown. Until that exists, every capture is a MA public
+// body and citing another state's law would be wrong.
+const MA_LEGAL_CLAUSE =
+  "Under the Massachusetts Open Meeting Law (G.L. c. 30A, § 20), any person may record an open session of a public body.";
+
+/** The full join notice: accessibility/recording notice + the MA legal basis.
+ *  Exported so a test guards the Google Meet 500-char cap as clauses are added. */
+export const BOT_ANNOUNCEMENT = `${BOT_ANNOUNCEMENT_BASE} ${MA_LEGAL_CLAUSE}`;
 
 export class RecallCaptureProvider implements CaptureProvider {
   constructor(private readonly config: AppConfig) {}
