@@ -55,6 +55,7 @@ describe("POST /api/meetings — public generate + dedup", () => {
         source_type: "stream",
         source_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         attestation: "public",
+        terms_agreed: true,
       })
     );
     expect(res.status).toBe(201);
@@ -74,6 +75,7 @@ describe("POST /api/meetings — public generate + dedup", () => {
         source_type: "stream",
         source_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         attestation: "public",
+        terms_agreed: true,
       })
     );
     const firstBody = await first.json();
@@ -86,6 +88,7 @@ describe("POST /api/meetings — public generate + dedup", () => {
         source_type: "stream",
         source_url: "https://youtu.be/dQw4w9WgXcQ?si=tracking",
         attestation: "public",
+        terms_agreed: true,
       })
     );
     expect(second.status).toBe(200);
@@ -132,6 +135,7 @@ describe("POST /api/upload — public generate, pending review", () => {
     form.set("title", "Uploaded session");
     form.set("body_name", "City Council");
     form.set("attestation", "public");
+    form.set("terms_agreed", "true");
     form.set(
       "file",
       new File([new Uint8Array([1, 2, 3, 4])], "clip.mp3", {
@@ -148,5 +152,33 @@ describe("POST /api/upload — public generate, pending review", () => {
     expect(body.published).toBe(false);
     // Uploads carry no source_url, so they have no dedup key.
     expect(body.source_key).toBeNull();
+    // The binding clickwrap agreement is persisted with the upload.
+    const { TERMS_VERSION } = await import("@/lib/legal");
+    expect(body.terms_agreed).toBe(true);
+    expect(body.terms_agreed_at).toEqual(expect.any(String));
+    expect(body.terms_version).toBe(TERMS_VERSION);
+  });
+
+  it("400s an upload missing the clickwrap agreement, storing nothing", async () => {
+    const { POST } = await import("@/app/api/upload/route");
+    const form = new FormData();
+    form.set("title", "Uploaded session");
+    form.set("body_name", "City Council");
+    form.set("attestation", "public");
+    // terms_agreed deliberately omitted.
+    form.set(
+      "file",
+      new File([new Uint8Array([1, 2, 3, 4])], "clip.mp3", {
+        type: "audio/mpeg",
+      })
+    );
+    const req = new Request("https://example.test/api/upload", {
+      method: "POST",
+      body: form,
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    const { getStore } = await import("@/lib/store");
+    expect(await getStore().listMeetings()).toHaveLength(0);
   });
 });

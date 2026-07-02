@@ -65,6 +65,16 @@ export interface Meeting {
   /** The lawful basis the submitter affirmed at create time (self-serve gate).
    *  Null on rows created before the attestation gate (or server-seeded). */
   attestation: MeetingAttestation | null;
+  /** Binding clickwrap attestation captured at submit time (migration 0015):
+   *  the submitter checked the required box affirming they are authorized to
+   *  record this meeting AND agreed to the Terms + Privacy Policy. False on
+   *  legacy / server-seeded / scheduled rows that carry no submitter agreement. */
+  terms_agreed: boolean;
+  /** Server timestamp the clickwrap agreement was recorded (null until agreed). */
+  terms_agreed_at: string | null;
+  /** Version of the Terms + Privacy in force when the submitter agreed
+   *  (see lib/legal.ts TERMS_VERSION). Null until an agreement is recorded. */
+  terms_version: string | null;
   /** When the submitter asked to add this to the public record (the "Add to the
    *  public record" action on the self-serve result page). Null until requested;
    *  publication still requires staff approval. */
@@ -111,6 +121,12 @@ export interface NewMeeting {
   /** The lawful basis the submitter affirmed (self-serve gate). Defaults to null
    *  for server-seeded/scheduled rows that carry no submitter attestation. */
   attestation?: MeetingAttestation | null;
+  /** Binding clickwrap agreement captured at submit time. Defaults to
+   *  false/null for server-seeded / scheduled rows that carry no agreement.
+   *  The public submit routes set all three together at create time. */
+  terms_agreed?: boolean;
+  terms_agreed_at?: string | null;
+  terms_version?: string | null;
   /** Optional on create: published defaults to false, tenant_id to null, and
    *  source_key is computed from source_url when omitted. */
   published?: boolean;

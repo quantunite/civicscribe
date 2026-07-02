@@ -11,6 +11,7 @@ import {
   MEETING_VIEW_TTL_SECONDS,
 } from "@/lib/auth/meeting-view";
 import { enforceSubmitGuardrails } from "@/lib/guardrails";
+import { TERMS_VERSION } from "@/lib/legal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,16 @@ const createMeetingSchema = z
     // to record it and add it to the public library. A missing/invalid value
     // falls through to the existing 400 issues path.
     attestation: z.enum(["public", "authorized"]),
+    // Binding clickwrap attestation (required): the submitter must check the box
+    // affirming they are authorized to record this meeting AND agree to the Terms
+    // + Privacy Policy. Must be exactly true; anything else (missing/false) fails
+    // validation, so a submission can never be created without the agreement. The
+    // timestamp + version are stamped server-side (below), not trusted from the
+    // client, so the persisted record is authoritative.
+    terms_agreed: z.literal(true, {
+      message:
+        "You must confirm you are authorized to record this meeting and agree to the Terms and Privacy Policy.",
+    }),
     // Live captions opt-in (bot sources only; forced false for stream below).
     live_enabled: z.boolean().optional(),
   })
@@ -185,6 +196,12 @@ export async function POST(request: Request) {
       kind: parsed.data.kind,
       source_url: parsed.data.source_url,
       attestation: parsed.data.attestation,
+      // Persist the binding clickwrap agreement with the submission. The value is
+      // validated true above; the timestamp + version are stamped server-side so
+      // the record is authoritative (never trusted from the client).
+      terms_agreed: true,
+      terms_agreed_at: new Date().toISOString(),
+      terms_version: TERMS_VERSION,
       live_enabled: liveEnabled,
     });
 

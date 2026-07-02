@@ -156,6 +156,11 @@ export class MemoryStore implements DataStore {
           published_at: m.published_at ?? null,
           // Self-serve columns (migration 0014): null for legacy rows.
           attestation: m.attestation ?? null,
+          // Clickwrap attestation columns (migration 0015): no agreement on
+          // record for legacy rows.
+          terms_agreed: m.terms_agreed ?? false,
+          terms_agreed_at: m.terms_agreed_at ?? null,
+          terms_version: m.terms_version ?? null,
           publish_requested_at: m.publish_requested_at ?? null,
           tenant_id: m.tenant_id ?? null,
           // Back-fill the dedup key from the legacy source_url so old rows
@@ -267,6 +272,9 @@ export class MemoryStore implements DataStore {
         schedule_id: input.schedule_id ?? null,
         occurrence_key: input.occurrence_key ?? null,
         attestation: input.attestation ?? null,
+        terms_agreed: input.terms_agreed ?? false,
+        terms_agreed_at: input.terms_agreed_at ?? null,
+        terms_version: input.terms_version ?? null,
         publish_requested_at: null,
         published: input.published ?? false,
         published_at: null,

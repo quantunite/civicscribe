@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Meeting, MeetingAttestation, MeetingKind } from "@/lib/types";
 import { detectMeetingPlatform } from "@/lib/net/url";
@@ -44,6 +45,7 @@ interface FieldErrors {
   bodyName?: string;
   source?: string;
   attestation?: string;
+  agree?: string;
 }
 
 /** Outcome the form shows in place. A fresh create navigates away to the
@@ -110,6 +112,10 @@ export default function NewMeetingForm({
   const [attestation, setAttestation] = useState<MeetingAttestation | null>(
     null
   );
+  // Required binding clickwrap: the submitter confirms they are authorized to
+  // record AND agree to the Terms + Privacy Policy. Submit is blocked until this
+  // is checked (and the server re-enforces it). Default off.
+  const [termsAgreed, setTermsAgreed] = useState(false);
 
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
@@ -124,6 +130,7 @@ export default function NewMeetingForm({
   const streamRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const attestationRef = useRef<HTMLInputElement>(null);
+  const termsRef = useRef<HTMLInputElement>(null);
 
   function selectTab(key: TabKey) {
     setActiveTab(key);
@@ -194,6 +201,10 @@ export default function NewMeetingForm({
     if (attestation === null) {
       next.attestation = "Choose the basis for adding this recording.";
     }
+    if (!termsAgreed) {
+      next.agree =
+        "Confirm you are authorized to record this meeting and agree to the Terms and Privacy Policy.";
+    }
     return next;
   }
 
@@ -208,6 +219,8 @@ export default function NewMeetingForm({
       else fileRef.current?.focus();
     } else if (next.attestation) {
       attestationRef.current?.focus();
+    } else if (next.agree) {
+      termsRef.current?.focus();
     }
   }
 
@@ -221,7 +234,8 @@ export default function NewMeetingForm({
       nextErrors.title ||
       nextErrors.bodyName ||
       nextErrors.source ||
-      nextErrors.attestation
+      nextErrors.attestation ||
+      nextErrors.agree
     ) {
       setStatusMessage("The form has errors. Fix the highlighted fields.");
       focusFirstError(nextErrors);
@@ -245,6 +259,9 @@ export default function NewMeetingForm({
         formData.set("body_name", bodyName.trim());
         formData.set("kind", kind);
         formData.set("attestation", attestationValue);
+        // Binding clickwrap agreement (server re-enforces; validate() blocked
+        // submit unless termsAgreed was true here).
+        formData.set("terms_agreed", "true");
         if (file) formData.set("file", file);
         res = await fetch("/api/upload", { method: "POST", body: formData });
       } else {
@@ -265,6 +282,9 @@ export default function NewMeetingForm({
             kind,
             source_url: sourceUrl,
             attestation: attestationValue,
+            // Binding clickwrap agreement (server re-enforces; validate() blocked
+            // submit unless termsAgreed was true here).
+            terms_agreed: true,
             // Live captions only apply to a video-call bot source. The server
             // forces false for stream regardless, so it is safe to omit there.
             ...(activeTab === "zoom" ? { live_enabled: liveEnabled } : {}),
@@ -346,6 +366,7 @@ export default function NewMeetingForm({
     setFile(null);
     setLiveEnabled(false);
     setAttestation(null);
+    setTermsAgreed(false);
   }
 
   // A fresh create navigates to the private result page. The only in-place
@@ -692,6 +713,58 @@ export default function NewMeetingForm({
         )}
       </fieldset>
 
+      {/* Binding clickwrap agreement (required). Submit is blocked until this is
+          checked, and the server re-enforces it and persists the agreement. */}
+      <div className="mt-6 rounded-md border border-line bg-primary-soft p-4">
+        <label htmlFor="terms-agree" className="flex cursor-pointer items-start gap-3">
+          <input
+            ref={termsRef}
+            id="terms-agree"
+            name="terms_agreed"
+            type="checkbox"
+            required
+            checked={termsAgreed}
+            onChange={(e) => {
+              setTermsAgreed(e.target.checked);
+              if (e.target.checked) {
+                setErrors((prev) => ({ ...prev, agree: undefined }));
+              }
+            }}
+            aria-invalid={errors.agree ? true : undefined}
+            aria-describedby={errors.agree ? "error-agree" : undefined}
+            className="mt-1 h-5 w-5 cursor-pointer rounded border-line-strong text-accent"
+          />
+          <span className="text-ink">
+            By submitting, you confirm you are authorized to record this meeting
+            and agree to the{" "}
+            <Link
+              href="/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-accent-strong underline"
+            >
+              Terms
+            </Link>{" "}
+            and{" "}
+            <Link
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-accent-strong underline"
+            >
+              Privacy Policy
+            </Link>
+            . <span aria-hidden="true" className="text-red-700">*</span>
+            <span className="sr-only">(required)</span>
+          </span>
+        </label>
+        {errors.agree && (
+          <p id="error-agree" role="alert" className={errorClass}>
+            {errors.agree}
+          </p>
+        )}
+      </div>
+
       {/* Server-side failure */}
       {serverError && (
         <p
@@ -705,7 +778,7 @@ export default function NewMeetingForm({
       <div className="mt-8 flex flex-wrap items-center gap-4">
         <button
           type="submit"
-          disabled={submitting || attestation === null}
+          disabled={submitting || attestation === null || !termsAgreed}
           className="inline-flex min-h-12 items-center gap-2 rounded-md bg-accent px-7 text-lg font-semibold text-white shadow-sm hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? "Adding meeting…" : "Add meeting"}

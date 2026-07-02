@@ -6,6 +6,7 @@ import {
   MEETING_VIEW_TTL_SECONDS,
 } from "@/lib/auth/meeting-view";
 import { enforceSubmitGuardrails } from "@/lib/guardrails";
+import { TERMS_VERSION } from "@/lib/legal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
   const file = form.get("file");
   const kind = form.get("kind") === "course" ? "course" : "civic";
   const attestationRaw = form.get("attestation");
+  const termsAgreedRaw = form.get("terms_agreed");
 
   if (typeof title !== "string" || title.trim() === "") {
     return NextResponse.json({ error: "title is required" }, { status: 400 });
@@ -109,6 +111,20 @@ export async function POST(request: Request) {
     );
   }
   const attestation = attestationRaw;
+  // Binding clickwrap attestation (required), mirroring POST /api/meetings: the
+  // submitter must have checked the box affirming they are authorized to record
+  // this meeting AND agree to the Terms + Privacy Policy. The client sends it as
+  // the string "true"; anything else (missing/false) is rejected, so an upload
+  // can never be created without the agreement.
+  if (termsAgreedRaw !== "true") {
+    return NextResponse.json(
+      {
+        error:
+          "You must confirm you are authorized to record this meeting and agree to the Terms and Privacy Policy.",
+      },
+      { status: 400 }
+    );
+  }
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json(
       { error: "file is required and must not be empty" },
@@ -143,6 +159,12 @@ export async function POST(request: Request) {
       source_type: "upload",
       kind,
       attestation,
+      // Persist the binding clickwrap agreement with the submission. The value is
+      // validated true above; the timestamp + version are stamped server-side so
+      // the record is authoritative (never trusted from the client).
+      terms_agreed: true,
+      terms_agreed_at: new Date().toISOString(),
+      terms_version: TERMS_VERSION,
     });
 
     const storagePath = `meetings/${meeting.id}/audio${ext}`;

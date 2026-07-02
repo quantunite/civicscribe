@@ -72,6 +72,9 @@ interface MeetingRow {
   schedule_id: string | null;
   occurrence_key: string | null;
   attestation: MeetingAttestation | null;
+  terms_agreed: boolean;
+  terms_agreed_at: string | null;
+  terms_version: string | null;
   publish_requested_at: string | null;
   published: boolean;
   published_at: string | null;
@@ -220,6 +223,9 @@ function mapMeeting(row: MeetingRow): Meeting {
     schedule_id: row.schedule_id ?? null,
     occurrence_key: row.occurrence_key ?? null,
     attestation: row.attestation ?? null,
+    terms_agreed: row.terms_agreed ?? false,
+    terms_agreed_at: row.terms_agreed_at ?? null,
+    terms_version: row.terms_version ?? null,
     publish_requested_at: row.publish_requested_at ?? null,
     published: row.published ?? false,
     published_at: row.published_at ?? null,
@@ -397,6 +403,12 @@ export class SupabaseStore implements DataStore {
         // scheduled rows). publish_requested_at keeps its null column default
         // until the submitter asks to add it to the public record.
         attestation: input.attestation ?? null,
+        // Clickwrap attestation (migration 0015): the binding right-to-record +
+        // Terms/Privacy agreement. The public submit routes set all three; keeps
+        // its false/null defaults for server-seeded / scheduled rows.
+        terms_agreed: input.terms_agreed ?? false,
+        terms_agreed_at: input.terms_agreed_at ?? null,
+        terms_version: input.terms_version ?? null,
         // published / published_at / tenant_id keep their column defaults
         // (false / null / null) unless an admin promotes the row later.
         published: input.published ?? false,

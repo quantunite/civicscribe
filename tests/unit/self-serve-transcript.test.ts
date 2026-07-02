@@ -237,6 +237,40 @@ describe("POST /api/meetings — attestation + view token + dedup", () => {
         body_name: "City Council",
         source_type: "stream",
         source_url: "https://youtu.be/ggggggggggg",
+        terms_agreed: true,
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("400s a submission missing the clickwrap agreement (terms_agreed)", async () => {
+    const { POST } = await import("@/app/api/meetings/route");
+    // attestation present but the required binding clickwrap is absent.
+    const res = await POST(
+      jsonReq({
+        title: "Council",
+        body_name: "City Council",
+        source_type: "stream",
+        source_url: "https://youtu.be/nagreed0001",
+        attestation: "public",
+      })
+    );
+    expect(res.status).toBe(400);
+    // And nothing was created without the agreement.
+    const { getStore } = await import("@/lib/store");
+    expect(await getStore().listMeetings()).toHaveLength(0);
+  });
+
+  it("400s a submission with terms_agreed=false (must be exactly true)", async () => {
+    const { POST } = await import("@/app/api/meetings/route");
+    const res = await POST(
+      jsonReq({
+        title: "Council",
+        body_name: "City Council",
+        source_type: "stream",
+        source_url: "https://youtu.be/nagreed0002",
+        attestation: "public",
+        terms_agreed: false,
       })
     );
     expect(res.status).toBe(400);
@@ -251,12 +285,25 @@ describe("POST /api/meetings — attestation + view token + dedup", () => {
         source_type: "stream",
         source_url: "https://youtu.be/hhhhhhhhhhh",
         attestation: "authorized",
+        terms_agreed: true,
       })
     );
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.id).toEqual(expect.any(String));
     expect(body.attestation).toBe("authorized");
+    // The binding clickwrap agreement is persisted with the submission: agreed,
+    // a server timestamp, and the terms version in force.
+    const { TERMS_VERSION } = await import("@/lib/legal");
+    expect(body.terms_agreed).toBe(true);
+    expect(body.terms_agreed_at).toEqual(expect.any(String));
+    expect(body.terms_version).toBe(TERMS_VERSION);
+    // And it round-trips from the store, not just the response body.
+    const { getStore } = await import("@/lib/store");
+    const persisted = await getStore().getMeeting(body.id);
+    expect(persisted?.terms_agreed).toBe(true);
+    expect(persisted?.terms_agreed_at).toEqual(expect.any(String));
+    expect(persisted?.terms_version).toBe(TERMS_VERSION);
     expect(typeof body.viewToken).toBe("string");
     // The minted token must verify for exactly this meeting id.
     expect(await verifyMeetingView(body.viewToken, SESSION, body.id)).toBe(
@@ -273,6 +320,7 @@ describe("POST /api/meetings — attestation + view token + dedup", () => {
         source_type: "stream",
         source_url: "https://www.youtube.com/watch?v=dedupVid001",
         attestation: "public",
+        terms_agreed: true,
       })
     );
     expect(first.status).toBe(201);
@@ -284,6 +332,7 @@ describe("POST /api/meetings — attestation + view token + dedup", () => {
         source_type: "stream",
         source_url: "https://youtu.be/dedupVid001?si=tracking",
         attestation: "public",
+        terms_agreed: true,
       })
     );
     expect(second.status).toBe(200);
@@ -307,6 +356,7 @@ describe("POST /api/meetings — attestation + view token + dedup", () => {
         source_type: "zoom",
         source_url: "https://us02web.zoom.us/j/12345",
         attestation: "authorized",
+        terms_agreed: true,
       })
     );
     // A recording bot may only join an open public meeting.
@@ -322,6 +372,7 @@ describe("POST /api/meetings — attestation + view token + dedup", () => {
         source_type: "zoom",
         source_url: "https://us02web.zoom.us/j/67890",
         attestation: "public",
+        terms_agreed: true,
       })
     );
     expect(res.status).toBe(201);
